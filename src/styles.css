@@ -1,0 +1,61 @@
+/*
+ * Library stylesheet. Tailwind utilities only (no preflight) so that importing
+ * this file never resets the host application's styles.
+ * Consumers: import '@1bod/react-gantt/styles.css'
+ */
+@layer theme, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@source "./";
+
+.gantt-root {
+  --gantt-row-height: 36px;
+  --gantt-header-height: 48px;
+  --gantt-sidebar-width: 240px;
+  --gantt-bar-color: #3b82f6;
+  --gantt-bar-text: #ffffff;
+  --gantt-grid-color: #e5e7eb;
+  --gantt-grid-major-color: #d1d5db;
+  --gantt-bg: #ffffff;
+  --gantt-row-alt-bg: #f9fafb;
+  --gantt-row-hover-bg: #eff6ff;
+  --gantt-text: #111827;
+  --gantt-muted: #6b7280;
+  --gantt-pending-color: #f59e0b;
+  --gantt-drop-color: #2563eb;
+  --gantt-font: ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--gantt-font);
+  color: var(--gantt-text);
+  background: var(--gantt-bg);
+}
+
+.gantt-bar {
+  background: var(--gantt-bar-bg, var(--gantt-bar-color));
+  color: var(--gantt-bar-text);
+}
+
+.gantt-bar[data-pending='true'] {
+  outline: 2px dashed var(--gantt-pending-color);
+  outline-offset: 1px;
+}
+
+.gantt-bar[data-dragging='true'] {
+  opacity: 0.85;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+}
+
+.gantt-ghost {
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    rgb(0 0 0 / 0.08) 4px,
+    rgb(0 0 0 / 0.08) 8px
+  );
+  border: 1px dashed var(--gantt-muted);
+}
+
+.gantt-row[data-drop-target='true'] {
+  box-shadow: inset 0 0 0 2px var(--gantt-drop-color);
+}

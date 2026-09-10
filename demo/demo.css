@@ -1,0 +1,8 @@
+@import 'tailwindcss';
+@import '@1bod/react-gantt/styles.css';
+
+@source "../src";
+
+body {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
