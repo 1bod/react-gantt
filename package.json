@@ -1,6 +1,6 @@
 {
   "name": "@1bod/react-gantt",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Highly customizable, virtualized React Gantt component with subtasks, snapping drag & drop and draft mode.",
   "private": true,
   "type": "module",
@@ -29,6 +29,7 @@
   "scripts": {
     "dev": "vite --config demo/vite.config.ts",
     "build": "vite build && tsc -p tsconfig.build.json",
+    "prepare": "npm run build",
     "build:demo": "vite build --config demo/vite.config.ts",
     "preview:demo": "vite preview --config demo/vite.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
