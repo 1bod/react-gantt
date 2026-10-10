@@ -128,6 +128,9 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
     renderLabel,
     renderRowLabel,
     renderHeaderCell,
+    renderSidebarHeader,
+    headerTiers,
+    showTicks = false,
     barClassName,
     barStyle,
     classNames: c = {},
@@ -184,7 +187,8 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
   );
   const scale = useMemo(() => createTimeScale(timeRange.startMs, timeRange.endMs, zoom, colWidth), [timeRange, zoom, colWidth]);
   const timelineWidth = scaleWidth(scale);
-  const tiers = useMemo(() => buildHeaderTicks(timeRange, zoom, zone, locale), [timeRange, zoom, zone, locale]);
+  const tierSpecs = headerTiers?.[zoom];
+  const tiers = useMemo(() => buildHeaderTicks(timeRange, zoom, zone, locale, tierSpecs), [timeRange, zoom, zone, locale, tierSpecs]);
   const totalWidth = sidebarWidth + timelineWidth;
   const bodyHeight = layout ? layout.height : rows.length * rowHeight;
 
@@ -782,6 +786,8 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
             window={horizontalWindow}
             classNames={c}
             renderHeaderCell={renderHeaderCell}
+            renderSidebarHeader={renderSidebarHeader}
+            showTicks={showTicks}
           />
           <div
             data-gantt="grid"
@@ -792,6 +798,8 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
             {gridLines.map((line) => (
               <div
                 key={line.key}
+                data-gantt="grid-line"
+                data-major={line.major || undefined}
                 className={cx(
                   'gantt-grid-line absolute inset-y-0 w-px',
                   line.major ? 'bg-[var(--gantt-grid-major-color)]' : 'bg-[var(--gantt-grid-color)]',

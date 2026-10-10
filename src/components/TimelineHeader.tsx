@@ -13,6 +13,9 @@ export interface TimelineHeaderProps {
   window: { left: number; right: number } | null;
   classNames: GanttClassNames;
   renderHeaderCell?: (tick: HeaderTick, tier: 'top' | 'bottom') => ReactNode;
+  renderSidebarHeader?: () => ReactNode;
+  /** Tick marks on the bottom tier, labels anchored at their tick. */
+  showTicks?: boolean;
 }
 
 function cx(...parts: Array<string | false | null | undefined>): string {
@@ -37,18 +40,28 @@ export function TimelineHeader(props: TimelineHeaderProps) {
       {visibleTicks(ticks, scale, props.window).map((tick) => {
         const left = msToPx(scale, tick.startMs);
         const width = msToPx(scale, tick.endMs) - left;
+        const anchored = tier === 'bottom' && props.showTicks;
         return (
           <div
             key={tick.key}
             data-gantt="header-cell"
+            data-tier={tier}
             className={cx(
-              'gantt-header-cell absolute inset-y-0 overflow-hidden border-r border-b border-[var(--gantt-grid-color)] px-1 text-xs leading-none whitespace-nowrap text-[var(--gantt-muted)] flex items-center',
-              tier === 'top' ? 'font-medium' : 'justify-center',
+              'gantt-header-cell absolute inset-y-0 overflow-hidden border-b border-[var(--gantt-grid-color)] px-1 text-xs leading-none whitespace-nowrap text-[var(--gantt-muted)] flex items-center',
+              !anchored && 'border-r',
+              tier === 'top' ? 'font-medium' : !anchored && 'justify-center',
               c.headerCell,
             )}
             style={{ left, width }}
             title={tick.label}
           >
+            {anchored && tick.startMs > scale.startMs && (
+              <span
+                data-gantt="header-tick"
+                aria-hidden
+                className={cx('gantt-header-tick absolute bottom-0 left-0 h-[var(--gantt-tick-height)] w-px bg-[var(--gantt-grid-major-color)]', c.headerTick)}
+              />
+            )}
             {props.renderHeaderCell ? props.renderHeaderCell(tick, tier) : tick.label}
           </div>
         );
@@ -64,9 +77,14 @@ export function TimelineHeader(props: TimelineHeaderProps) {
     >
       <div
         data-gantt="header-sidebar"
-        className={cx('gantt-header-sidebar sticky left-0 z-40 shrink-0 border-r border-b border-[var(--gantt-grid-major-color)] bg-[var(--gantt-bg)]', c.headerSidebar)}
+        className={cx(
+          'gantt-header-sidebar sticky left-0 z-40 flex shrink-0 items-center border-r border-b border-[var(--gantt-grid-major-color)] bg-[var(--gantt-bg)]',
+          c.headerSidebar,
+        )}
         style={{ width: props.sidebarWidth }}
-      />
+      >
+        {props.renderSidebarHeader?.()}
+      </div>
       <div data-gantt="header-timeline" className={cx('gantt-header-timeline relative shrink-0', c.headerTimeline)} style={{ width: props.timelineWidth }}>
         {renderTier(tiers.top, 'top')}
         {renderTier(tiers.bottom, 'bottom')}

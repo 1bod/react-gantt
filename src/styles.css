@@ -26,6 +26,7 @@
   --gantt-drop-color: #2563eb;
   --gantt-closed-bg: #f3f4f6;
   --gantt-closed-hatch: #e5e7eb;
+  --gantt-tick-height: 6px;
   --gantt-font: ui-sans-serif, system-ui, sans-serif;
   font-family: var(--gantt-font);
   color: var(--gantt-text);

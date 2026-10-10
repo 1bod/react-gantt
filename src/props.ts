@@ -1,6 +1,6 @@
 import type { DateTime } from 'luxon';
 import type { CSSProperties, ReactNode } from 'react';
-import type { HeaderTick } from './core/header';
+import type { HeaderTick, HeaderTierSpecs } from './core/header';
 import type { GanttRow } from './core/rows';
 import type { ClosedRange, DateInput, DragPreview, GanttResourceRow, GanttTask, ParentMode, SnapMode, TaskChange, ZoomLevel } from './types';
 
@@ -13,6 +13,7 @@ export type GanttSlot =
   | 'headerTierTop'
   | 'headerTierBottom'
   | 'headerCell'
+  | 'headerTick'
   | 'grid'
   | 'gridLine'
   | 'gridLineMajor'
@@ -188,6 +189,15 @@ export interface GanttProps<TData = unknown, TRowData = unknown> {
   /** Resource mode: content of a row's sidebar cell. Defaults to `row.label`. */
   renderRowLabel?: (ctx: RowLabelRenderContext<TData, TRowData>) => ReactNode;
   renderHeaderCell?: (tick: HeaderTick, tier: 'top' | 'bottom') => ReactNode;
+  /** Content of the top-left header cell, above the sidebar. */
+  renderSidebarHeader?: () => ReactNode;
+  /**
+   * Header tiers per zoom level: unit, step and label format of the top and bottom tiers
+   * (e.g. days over 6-hour steps). Missing levels use `DEFAULT_HEADER_TIERS`.
+   */
+  headerTiers?: Partial<Record<ZoomLevel, HeaderTierSpecs>>;
+  /** Tick marks on the bottom tier; its labels are then left-aligned at their tick. Default `false`. */
+  showTicks?: boolean;
   barClassName?: (task: GanttTask<TData>) => string | undefined;
   barStyle?: (task: GanttTask<TData>) => CSSProperties | undefined;
 

@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GanttRow } from '../core/rows';
 import { baseProps, DAY_START, getResourceRow, H, makeResourceRows, makeResourceTasks, makeTasks, resourceProps } from '../test-utils';
@@ -74,5 +74,49 @@ describe('closed time', () => {
       <Gantt {...resourceProps} rows={makeResourceRows()} tasks={makeResourceTasks()} closedRanges={closedRanges} classNames={{ closedRange: 'my-closed' }} />,
     );
     expect(closedBlocks(document.body)[0]).toHaveClass('gantt-closed', 'my-closed');
+  });
+});
+
+describe('header', () => {
+  const cells = (tier: 'top' | 'bottom') => Array.from(document.querySelectorAll<HTMLElement>(`[data-gantt="header-cell"][data-tier="${tier}"]`));
+
+  it('renders the sidebar header cell', () => {
+    render(<Gantt {...baseProps} tasks={makeTasks()} renderSidebarHeader={() => <button type="button">Rows</button>} />);
+    const cell = document.querySelector('[data-gantt="header-sidebar"]')!;
+    expect(cell).toContainElement(screen.getByRole('button', { name: 'Rows' }));
+  });
+
+  it('uses the tiers of the current zoom level', () => {
+    const headerTiers = {
+      hour: [
+        { unit: 'day', format: 'ccc d LLL' },
+        { unit: 'hour', step: 6, format: 'HH:mm' },
+      ],
+    } as const;
+    const { rerender } = render(<Gantt {...baseProps} tasks={makeTasks()} headerTiers={{ hour: [...headerTiers.hour] }} />);
+    expect(cells('top').map((cell) => cell.textContent)).toEqual(['Mon 5 Jan']);
+    expect(cells('bottom').map((cell) => cell.textContent)).toEqual(['00:00', '06:00', '12:00', '18:00']);
+    expect(cells('bottom')[1]).toHaveStyle({ left: '360px', width: '360px' });
+    // Grid lines follow the bottom tier, majors at the top tier boundaries.
+    const lines = Array.from(document.querySelectorAll<HTMLElement>('[data-gantt="grid-line"]'));
+    expect(lines.map((line) => line.style.left)).toEqual(['0px', '360px', '720px', '1080px']);
+    expect(lines.map((line) => line.dataset.major ?? '')).toEqual(['true', '', '', '']);
+    // Another zoom level without custom tiers: defaults.
+    rerender(<Gantt {...baseProps} zoom="day" tasks={makeTasks()} headerTiers={{ hour: [...headerTiers.hour] }} />);
+    expect(cells('top')[0]!.textContent).toBe('January 2026');
+  });
+
+  it('draws ticks on the bottom tier with labels anchored at them', () => {
+    const { rerender } = render(<Gantt {...baseProps} tasks={makeTasks()} />);
+    expect(document.querySelector('[data-gantt="header-tick"]')).toBeNull();
+    expect(cells('bottom')[0]).toHaveClass('justify-center', 'border-r');
+    rerender(<Gantt {...baseProps} tasks={makeTasks()} showTicks classNames={{ headerTick: 'my-tick' }} />);
+    const ticks = document.querySelectorAll('[data-gantt="header-tick"]');
+    expect(ticks).toHaveLength(23); // none at the very start of the timeline
+    expect(ticks[0]).toHaveClass('gantt-header-tick', 'my-tick');
+    expect(cells('bottom')[1]).toContainElement(ticks[0] as HTMLElement);
+    expect(cells('bottom')[0]).not.toHaveClass('justify-center');
+    expect(cells('bottom')[0]).not.toHaveClass('border-r');
+    expect(cells('top')[0]).toHaveClass('border-r');
   });
 });

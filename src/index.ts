@@ -39,5 +39,5 @@ export type { ResourceLayout, ResourceRowLayout, ResourceBar } from './core/reso
 export type { GanttRow, BarItem } from './core/rows';
 export { toMs, toDateTime, computeRange, createTimeScale, msToPx, pxToMs, MINUTE, HOUR, DAY, WEEK } from './core/time';
 export type { TimeScale, TimeRange } from './core/time';
-export { buildHeaderTicks } from './core/header';
-export type { HeaderTick, HeaderTiers } from './core/header';
+export { buildHeaderTicks, DEFAULT_HEADER_TIERS } from './core/header';
+export type { HeaderTick, HeaderTiers, HeaderTierSpec, HeaderTierSpecs, HeaderTierUnit } from './core/header';
