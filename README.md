@@ -50,9 +50,13 @@ applications :
 ## Installation
 
 ```bash
-npm install github:1bod/react-gantt#v1.1.0 luxon
-bun add github:1bod/react-gantt#v1.1.0 luxon
+bun add git+ssh://git@github.com/1bod/react-gantt.git#v1.1.0 luxon
+npm install git+ssh://git@github.com/1bod/react-gantt.git#v1.1.0 luxon
 ```
+
+Le dépôt étant privé, passez par SSH (clé SSH en local, deploy key en CI). Le raccourci
+`github:1bod/react-gantt#v1.1.0` télécharge l'archive via l'API GitHub sans authentification avec
+bun : il ne fonctionne que si le dépôt est public.
 
 `react` et `react-dom` (`^19.3.0`) sont des peer dependencies.
 
