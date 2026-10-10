@@ -10,14 +10,18 @@ applications :
   tâches voisines**.
 - **Déplacement vertical** entre lignes : réordonner, imbriquer dans un parent, sortir d'un parent.
 - **Mode brouillon** : les modifications sont prévisualisées et validées d'un coup.
-- **Virtualisation** : des milliers de lignes sans ralentissement.
+- **Mode ressources** (1.1) : une ligne par ressource (machine, opérateur…), plusieurs barres par
+  ligne réparties en couloirs, déplacement d'une ressource à l'autre, périodes fermées hachurées,
+  sélection, liens de dépendance et refus des cibles de dépôt invalides.
+- **Virtualisation** : des milliers de lignes sans ralentissement, hauteurs variables comprises.
 - **Composant contrôlé** : il ne modifie jamais vos données, il émet des événements.
 - Rendu **HTML** (pas de canvas) : tout est stylable via CSS variables, classes et render props.
 - Dates avec [Luxon](https://moment.github.io/luxon/), styles **Tailwind** précompilés (aucune
   configuration Tailwind requise côté application).
 
-> **Statut** : `1.0.0`, dépôt privé. Le package n'est pas publié sur npm (`"private": true`),
-> installez-le depuis Git.
+> **Statut** : `1.1.0`, dépôt privé. Le package n'est pas publié sur npm (`"private": true`),
+> installez-le depuis Git. La 1.1 est strictement additive : sans les nouvelles props, le
+> comportement et le rendu sont ceux de la 1.0.
 
 ---
 
@@ -30,29 +34,34 @@ applications :
 5. [Déplacements et événements](#déplacements-et-événements)
 6. [Snap](#snap)
 7. [Mode brouillon](#mode-brouillon)
-8. [Échelle de temps, zoom et plage](#échelle-de-temps-zoom-et-plage)
-9. [Clavier et accessibilité](#clavier-et-accessibilité)
-10. [Personnalisation](#personnalisation)
-11. [Référence des props](#référence-des-props)
-12. [Ref impérative](#ref-impérative)
-13. [Utilitaires exportés](#utilitaires-exportés)
-14. [Recettes](#recettes)
-15. [Développement et tests](#développement-et-tests)
+8. [Mode ressources](#mode-ressources)
+9. [Échelle de temps, zoom et plage](#échelle-de-temps-zoom-et-plage)
+10. [Clavier et accessibilité](#clavier-et-accessibilité)
+11. [Personnalisation](#personnalisation)
+12. [Référence des props](#référence-des-props)
+13. [Ref impérative](#ref-impérative)
+14. [Utilitaires exportés](#utilitaires-exportés)
+15. [Recettes](#recettes)
+16. [Développement et tests](#développement-et-tests)
+17. [Changelog](#changelog)
 
 ---
 
 ## Installation
 
 ```bash
-npm install github:1bod/react-gantt#v1.0.0 luxon
+npm install github:1bod/react-gantt#v1.1.0 luxon
+bun add github:1bod/react-gantt#v1.1.0 luxon
 ```
 
-`react` et `react-dom` (>= 18) sont des peer dependencies.
+`react` et `react-dom` (`^19.3.0`) sont des peer dependencies.
 
-Le dossier `dist/` n'est pas commité : le script `prepare` construit le package automatiquement
-lors d'une installation depuis Git. Dans un monorepo, ajoutez le dépôt comme package local, ou
-pointez un alias Vite vers `src/index.ts` (c'est ce que fait la démo, voir
-[demo/vite.config.ts](demo/vite.config.ts)).
+Depuis la 1.1.0, **les tags de release contiennent `dist/`** (commit de release dédié) : le
+package s'installe tel quel, sans étape de build, y compris avec les gestionnaires qui n'exécutent
+pas les scripts de cycle de vie des dépendances Git (bun, pnpm). Sur les branches, `dist/` reste
+ignoré. Le tag `v1.0.0` ne contient pas `dist/` et repose sur le script `prepare` (npm uniquement).
+Dans un monorepo, vous pouvez aussi ajouter le dépôt comme package local, ou pointer un alias Vite
+vers `src/index.ts` (c'est ce que fait la démo, voir [demo/vite.config.ts](demo/vite.config.ts)).
 
 Importez ensuite le composant **et sa feuille de style** :
 
@@ -127,6 +136,8 @@ interface GanttTask<TData = unknown> {
   parentMode?: 'independent' | 'inline';
   /** Données libres, renvoyées telles quelles dans les render props et les événements. */
   data?: TData;
+  /** Mode ressources : id de la ligne (ressource) sur laquelle la tâche est dessinée. */
+  rowId?: string;
 }
 ```
 
@@ -185,6 +196,10 @@ interface TaskChange {
   /** Présent uniquement si la tâche a changé de ligne. */
   position?: { parentId: string | null; index: number };
   previousPosition: { parentId: string | null; index: number };
+  /** Mode ressources : présent uniquement si la tâche a changé de ressource. */
+  rowId?: string;
+  /** Mode ressources : la ressource d'origine. */
+  previousRowId?: string;
 }
 ```
 
@@ -192,7 +207,17 @@ interface TaskChange {
   contrôlé, la barre revient simplement à sa place.
 - **Aperçu en direct** : `onDragPreview(preview | null)` est appelé à chaque mouvement du pointeur
   (dates, position cible, et `snappedTo: 'edge' | 'grid' | 'none'` pour savoir sur quoi la barre
-  s'est calée), puis une dernière fois avec `null` à la fin du geste.
+  s'est calée ; en mode ressources `rowId`, la ligne visée ; avec `canDrop`, `valid`), puis une
+  dernière fois avec `null` à la fin du geste.
+- **Refuser une cible pendant le geste** : `canDrop(change)` reçoit le changement que produirait
+  un dépôt à la position courante. S'il retourne `false`, la barre porte `data-invalid` (contour
+  `--gantt-invalid-color`, curseur `not-allowed`) tant qu'elle survole cette cible, et le dépôt y
+  est annulé. Les déplacements au clavier sont filtrés de la même façon.
+- **Barre collée au pointeur** : avec `dragFollowsPointer`, la barre suit le pointeur au pixel près
+  (sans snap, librement en vertical) et un indicateur `[data-gantt="drop-indicator"]` (slot
+  `dropIndicator`) montre la cible calée (ligne, couloir, dates). Par défaut (1.0), c'est la barre
+  elle-même qui saute à la position calée. Dans les deux cas un fantôme reste à l'ancienne place
+  et la barre déplacée n'a jamais de transition.
 - **Clic simple** : `onTaskClick(task, event)` est appelé quand le pointeur n'a pas bougé de plus
   de 3 pixels. Si la tâche est un parent, l'accordéon est aussi basculé.
 
@@ -256,6 +281,107 @@ réordonnées. Une barre d'outils intégrée propose de valider ou d'annuler l'e
 
 ---
 
+## Mode ressources
+
+Pour un ordonnanceur de production : une ligne par **ressource** (machine, poste, opérateur), et
+sur chaque ligne toutes les tâches qui lui sont affectées.
+
+```tsx
+import { useState } from 'react';
+import { Gantt, applyTaskChange, type GanttResourceRow, type GanttTask, type TaskChange } from '@1bod/react-gantt';
+
+const machines: GanttResourceRow<{ code: string }>[] = [
+  { id: 'tour-1', label: 'Tour CNC 1', data: { code: 'TCN-01' } },
+  { id: 'fraise', label: 'Fraiseuse 5 axes', data: { code: 'FR5-01' } },
+];
+
+const operations: GanttTask[] = [
+  { id: 'of1042-10', label: 'OF-1042 · 10 Tournage', start: '2026-10-12T06:00', end: '2026-10-12T09:00', rowId: 'tour-1' },
+  { id: 'of1043-10', label: 'OF-1043 · 10 Tournage', start: '2026-10-12T08:00', end: '2026-10-12T11:00', rowId: 'tour-1' },
+  { id: 'of1042-20', label: 'OF-1042 · 20 Fraisage', start: '2026-10-12T09:00', end: '2026-10-12T12:00', rowId: 'fraise' },
+];
+
+export function Board() {
+  const [tasks, setTasks] = useState(operations);
+  return (
+    <Gantt
+      rows={machines}
+      tasks={tasks}
+      rowHeight={28}
+      laneHeight={24}
+      barInset={4}
+      onTaskChange={(change: TaskChange) => setTasks((prev) => applyTaskChange(prev, change))}
+      renderRowLabel={({ row, tasks }) => `${row.label} (${tasks.length})`}
+    />
+  );
+}
+```
+
+- **Lignes** : `rows` active le mode. Chaque tâche (racine ou enfant) dont `rowId` correspond à une
+  ligne y est dessinée ; les autres ne sont pas affichées. Il n'y a ni accordéon ni `parentMode`
+  dans ce mode.
+- **Couloirs** : les barres qui se chevauchent sur une même ligne sont réparties en couloirs
+  (algorithme glouton, ordre stable par début puis id ; deux barres qui se touchent partagent un
+  couloir). Chaque couloir supplémentaire ajoute `laneHeight` (par défaut `rowHeight`) à la ligne.
+  `barInset` fixe l'écart en pixels entre une barre et les bords de son couloir (par défaut 15 % de
+  `rowHeight`) : avec 28 / 24 / 4, une barre fait 20 px et une ligne à deux couloirs 52 px.
+- **Libellés** : `renderRowLabel({ row, index, tasks, laneCount, hasSelection })` remplace
+  `row.label` dans la colonne de gauche. `renderSidebarHeader()` remplit la cellule au-dessus.
+- **Déplacement** : glisser une barre sur une autre ligne émet un `TaskChange` avec `rowId` (la
+  nouvelle ressource) et `previousRowId` ; `position` n'est pas utilisée. `applyTaskChange` met à
+  jour `rowId`. `↑` / `↓` changent de ressource au clavier. En mode brouillon, le fantôme reste sur
+  la ressource d'origine.
+- **Render props** : `renderBar` reçoit en plus `resource` (la ligne) et `lane`.
+- **Virtualisation** : elle fonctionne avec les hauteurs variables (décalages cumulés + recherche
+  dichotomique) ; la ligne de la barre déplacée reste montée même si elle sort de la fenêtre.
+
+### Périodes fermées
+
+```tsx
+const closedRanges = (row: GanttResourceRow | GanttRow) =>
+  'task' in row ? [] : calendars[row.id]; // [{ start, end }, …] en DateInput
+
+<Gantt rows={machines} closedRanges={closedRanges} closedNarrowThreshold={30} … />
+```
+
+Chaque période est dessinée sur toute la hauteur de la ligne, derrière les barres
+(`[data-gantt="closed"]`, slot `closedRange`), avec `--gantt-closed-bg` et une hachure à 45°
+`--gantt-closed-hatch` (une hachure `transparent` donne un aplat). Les blocs plus étroits que
+`closedNarrowThreshold` pixels portent `data-narrow` et n'ont pas de hachure par défaut. Seule la
+partie visible est rendue. En mode tâches, la fonction reçoit la ligne de tâche (`'task' in row`).
+Le résultat est mis en cache par ligne jusqu'à ce que la fonction ou les lignes changent :
+passez une fonction stable.
+
+### Sélection et mise en évidence
+
+`selectedIds` + `onSelectionChange` (ou `onSelectionChange` seul, état interne) :
+
+- clic : sélectionne une barre ; `Shift`, `Cmd` ou `Ctrl` + clic : l'ajoute ou la retire ;
+- `Entrée` / `Espace` sur une barre (hors parent en mode tâches) : idem au clavier ;
+- `Échap` (focus dans le Gantt ou nulle part) et clic dans une zone vide de la grille : vide la
+  sélection.
+
+Les barres sélectionnées portent `data-selected` (slot `barSelected`, contour
+`--gantt-selected-color`, au-dessus des autres), les lignes qui en contiennent une
+`data-has-selection`. `highlightedIds` met d'autres barres en évidence (`data-highlighted`, slot
+`barHighlighted`, `--gantt-highlight-color`), par exemple les autres opérations de l'ordre
+sélectionné. `BarRenderContext` expose `isSelected` et `isHighlighted`. Aucune animation.
+
+### Liens
+
+```tsx
+<Gantt links={[{ id: 'l1', from: 'of1042-10', to: 'of1042-20', type: 'finish_start' }]} showLinks="selected" … />
+```
+
+Les liens (`finish_start` par défaut, `start_start`, `finish_finish`) sont dessinés en coudes
+orthogonaux dans un calque SVG au-dessus des lignes et sous les barres
+(`[data-gantt="link"][data-link-id][data-type]`, slot `link`, couleur `--gantt-link-color`).
+`showLinks` : `'selected'` (défaut, liens touchant une barre sélectionnée), `'all'` ou `'none'`.
+Un lien dont une des barres n'est pas rendue (virtualisée, hors fenêtre) n'est pas dessiné ; un
+lien suit la barre pendant un déplacement.
+
+---
+
 ## Échelle de temps, zoom et plage
 
 | Prop           | Défaut                   | Description                                                                                             |
@@ -267,9 +393,34 @@ réordonnées. Une barre d'outils intégrée propose de valider ou d'annuler l'e
 | `zone`         | `'local'`                | Zone IANA (`'Europe/Paris'`) utilisée pour la grille, les en-têtes et les dates émises.                 |
 | `locale`       | locale du navigateur     | Locale Luxon des en-têtes (`'fr'`).                                                                     |
 | `showNow`      | `true`                   | Trait vertical à l'instant présent. `now` permet de forcer cet instant.                                 |
+| `renderNow`    | —                        | Contenu dessiné dans la bande basse de l'en-tête, centré sur le trait (une pastille « 14:32 »).         |
+| `headerTiers`  | `DEFAULT_HEADER_TIERS`   | Bandes de l'en-tête par niveau de zoom (voir ci-dessous).                                               |
+| `showTicks`    | `false`                  | Graduations sur la bande basse ; ses libellés sont alors alignés à gauche sur leur graduation.          |
 
 Conseil : fournissez `range` quand les tâches bougent souvent, sinon la plage calculée se recale sur
 les nouvelles dates et la vue peut sauter.
+
+### Bandes de l'en-tête
+
+Chaque niveau de zoom a deux bandes, haute et basse. `headerTiers` remplace celles d'un ou plusieurs
+niveaux ; une bande donne une unité (`year`, `quarter`, `month`, `week`, `day`, `hour`,
+`minute`), un pas (`step`, aligné sur l'unité parente et insensible aux changements d'heure) et un
+format (chaîne Luxon ou fonction de la date de début de la cellule) :
+
+```tsx
+const headerTiers = {
+  hour: [{ unit: 'day', format: 'ccc d LLL' }, { unit: 'hour', format: 'HH:mm' }],
+  day: [{ unit: 'day', format: 'ccc d LLL' }, { unit: 'hour', step: 6, format: 'HH:mm' }], // 00:00 06:00 12:00 18:00
+  week: [{ unit: 'week', format: "'S'W" }, { unit: 'day', format: 'd' }],
+} satisfies GanttProps['headerTiers'];
+
+<Gantt zoom="day" columnWidth={480} headerTiers={headerTiers} showTicks … />
+```
+
+Les valeurs par défaut (`DEFAULT_HEADER_TIERS`) reproduisent exactement la 1.0. Les lignes
+verticales de la grille suivent la bande basse ; celles qui tombent sur une limite de la bande
+haute sont « majeures » (`data-major`, `--gantt-grid-major-color`, slot `gridLineMajor`). Passez
+un objet stable (constante ou `useMemo`). Les cellules portent `data-tier="top|bottom"`.
 
 ---
 
@@ -282,9 +433,9 @@ Chaque barre est focusable (`Tab`) et porte un `aria-label` avec le libellé et 
 | `←` / `→`           | Déplace la tâche d'une unité de snap             |
 | `Shift + ←` / `→`   | Redimensionne la fin                            |
 | `Alt + ←` / `→`     | Redimensionne le début                          |
-| `↑` / `↓`           | Déplace la tâche sur la ligne précédente/suivante |
-| `Entrée` / `Espace` | Déplie ou replie une tâche parente              |
-| `Échap`             | Annule le drag en cours                         |
+| `↑` / `↓`           | Déplace la tâche sur la ligne précédente/suivante (la ressource, en mode ressources) |
+| `Entrée` / `Espace` | Déplie ou replie une tâche parente ; sinon, avec la sélection activée, sélectionne la barre (`Shift` : ajoute / retire) |
+| `Échap`             | Annule le drag en cours ; sinon vide la sélection |
 
 Les changements clavier passent par `onTaskChange` avec `reason: 'keyboard'`. `readOnly` désactive
 toute interaction (les barres restent visibles mais ne sont plus focusables).
@@ -310,19 +461,44 @@ toute interaction (les barres restent visibles mais ne sont plus focusables).
   --gantt-text: #111827;
   --gantt-muted: #6b7280;
   --gantt-pending-color: #f59e0b;  /* contour des barres en brouillon */
-  --gantt-drop-color: #2563eb;     /* surlignage de la ligne cible */
+  --gantt-drop-color: #2563eb;     /* surlignage de la ligne cible, indicateur de dépôt */
   --gantt-font: ui-sans-serif, system-ui, sans-serif;
+
+  /* 1.1 : plus aucune couleur codée en dur, chaque défaut reproduit la 1.0 */
+  --gantt-now-color: oklch(63.7% 0.237 25.331); /* trait de l'instant présent (red-500) */
+  --gantt-focus-color: oklch(62.3% 0.214 259.815); /* contour de focus des barres (blue-500) */
+  --gantt-drop-text: #fff;                      /* texte du bouton « Valider » */
+  --gantt-handle-hover-bg: rgb(0 0 0 / 0.2);    /* poignées de redimensionnement au survol */
+  --gantt-toggle-hover-bg: rgb(0 0 0 / 0.1);    /* chevron d'accordéon au survol */
+  --gantt-button-hover-bg: rgb(0 0 0 / 0.05);   /* bouton « Annuler » au survol */
+  --gantt-ghost-hatch: rgb(0 0 0 / 0.08);       /* hachures du fantôme */
+  --gantt-drag-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+  --gantt-toolbar-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --gantt-closed-bg: #f3f4f6;                   /* périodes fermées */
+  --gantt-closed-hatch: #e5e7eb;                /* hachure à 45° (transparent = aplat) */
+  --gantt-tick-height: 6px;                     /* graduations de l'en-tête */
+  --gantt-selected-color: #2563eb;              /* contour des barres sélectionnées */
+  --gantt-highlight-color: #93c5fd;             /* contour des barres mises en évidence */
+  --gantt-link-color: var(--gantt-muted);       /* liens */
+  --gantt-invalid-color: #dc2626;               /* cible refusée par canDrop */
+  --gantt-lane-height: …;                       /* posée par le composant en mode ressources */
 }
 ```
+
+Les règles par défaut ajoutées en 1.1 (périodes fermées, sélection, mise en évidence, cible
+invalide, indicateur de dépôt, liens, ombre de la barre d'outils) sont dans la couche CSS
+`components` : une classe utilitaire passée par `classNames` les surcharge. Les règles 1.0 sont
+inchangées.
 
 ### Classes par slot
 
 `classNames` ajoute une classe à chaque zone du composant. Slots disponibles : `root`, `scroller`,
 `header`, `headerSidebar`, `headerTimeline`, `headerTierTop`, `headerTierBottom`, `headerCell`,
-`grid`, `gridLine`, `gridLineMajor`, `nowLine`, `row`, `rowGroup`, `rowChild`, `rowDropTarget`,
-`sidebarCell`, `sidebarLabel`, `toggle`, `timelineCell`, `bar`, `barGroup`, `barChild`,
-`barPending`, `barDragging`, `barLabel`, `handle`, `ghost`, `draftToolbar`, `draftButton`,
-`draftButtonPrimary`.
+`headerTick`, `grid`, `gridLine`, `gridLineMajor`, `nowLine`, `nowMarker`, `row`, `rowGroup`,
+`rowChild`, `rowDropTarget`, `sidebarCell`, `sidebarLabel`, `toggle`, `timelineCell`,
+`closedRange`, `bar`, `barGroup`, `barChild`, `barPending`, `barDragging`, `barSelected`,
+`barHighlighted`, `barInvalid`, `barLabel`, `handle`, `ghost`, `dropIndicator`, `link`,
+`draftToolbar`, `draftButton`, `draftButtonPrimary`.
 
 ```tsx
 <Gantt classNames={{ bar: 'shadow-sm', barGroup: 'font-semibold', row: 'transition-colors' }} />
@@ -356,18 +532,35 @@ toute interaction (les barres restent visibles mais ne sont plus focusables).
 
 Utiles pour du CSS ciblé ou des tests :
 
-- `[data-gantt="bar"][data-task-id="…"]`, `[data-kind="leaf|group|child"]`, `[data-dragging]`, `[data-pending]`
-- `[data-gantt="row"][data-task-id="…"][data-row-index]`, `[data-kind="leaf|group|child"]`, `[data-drop-target]`
+- `[data-gantt="bar"][data-task-id="…"]`, `[data-kind="leaf|group|child"]`, `[data-dragging]`, `[data-pending]`,
+  `[data-selected]`, `[data-highlighted]`, `[data-invalid]`
+- `[data-gantt="row"][data-task-id="…"][data-row-index]`, `[data-kind="leaf|group|child"]`, `[data-drop-target]`,
+  `[data-has-selection]` ; en mode ressources `[data-row-id="…"][data-kind="resource"][data-lanes]`
 - `[data-gantt="root"][data-dragging="move|resize-start|resize-end"]`
-- `[data-gantt="toggle"]`, `[data-gantt="ghost"]`, `[data-gantt="header-cell"]`, `[data-gantt="draft-toolbar"]`
+- `[data-gantt="toggle"]`, `[data-gantt="ghost"]`, `[data-gantt="header-cell"][data-tier="top|bottom"]`,
+  `[data-gantt="header-tick"]`, `[data-gantt="grid-line"][data-major]`, `[data-gantt="now"]`,
+  `[data-gantt="now-marker"]`, `[data-gantt="closed"][data-narrow]`, `[data-gantt="drop-indicator"][data-invalid]`,
+  `[data-gantt="links"]`, `[data-gantt="link"][data-link-id][data-type]`, `[data-gantt="draft-toolbar"]`
+
+### Animations
+
+Le composant n'anime rien (pas de transition, pas d'animation, défilement instantané) : il n'y a
+donc rien à adapter pour `prefers-reduced-motion`. La barre en cours de déplacement force
+`transition: none`, même si l'application ajoute des transitions aux barres. Si vous en ajoutez
+(par exemple un « settle » au dépôt), prévoyez leur variante `prefers-reduced-motion`.
 
 ---
 
 ## Référence des props
 
+Les props ajoutées en 1.1 sont marquées ¹.
+
 | Prop                  | Type                                            | Défaut          |
 | --------------------- | ----------------------------------------------- | --------------- |
 | `tasks`               | `GanttTask[]`                                   | requis          |
+| `rows` ¹              | `GanttResourceRow[]` : active le mode ressources | —              |
+| `laneHeight` ¹        | `number` : hauteur ajoutée par couloir           | `rowHeight`    |
+| `barInset` ¹          | `number` : écart barre / bords du couloir (px)   | 15 % de `rowHeight` |
 | `zoom`                | `'hour' \| 'day' \| 'week' \| 'month'`          | `'day'`         |
 | `onZoomChange`        | `(zoom) => void`                                | —               |
 | `range`               | `{ start, end }`                                | calculée        |
@@ -387,6 +580,15 @@ Utiles pour du CSS ciblé ou des tests :
 | `onTaskChange`        | `(change) => void \| boolean`                   | —               |
 | `onDragPreview`       | `(preview \| null) => void`                     | —               |
 | `onTaskClick`         | `(task, event) => void`                         | —               |
+| `canDrop` ¹           | `(change) => boolean` : refuse une cible         | —               |
+| `dragFollowsPointer` ¹ | `boolean` : barre au pointeur + indicateur      | `false`         |
+| `selectedIds` ¹       | `string[]` (contrôlé)                           | —               |
+| `onSelectionChange` ¹ | `(ids: string[]) => void`                       | —               |
+| `highlightedIds` ¹    | `string[]`                                      | —               |
+| `links` ¹             | `GanttLink[]`                                   | —               |
+| `showLinks` ¹         | `'selected' \| 'all' \| 'none'`                  | `'selected'`    |
+| `closedRanges` ¹      | `(row) => ClosedRange[]`                        | —               |
+| `closedNarrowThreshold` ¹ | `number` (px)                               | `30`            |
 | `draft`               | `boolean`                                       | `false`         |
 | `onDraftChange`       | `(changes) => void`                             | —               |
 | `onDraftCommit`       | `(changes) => void \| boolean`                  | —               |
@@ -400,8 +602,13 @@ Utiles pour du CSS ciblé ou des tests :
 | `overscan`            | `number`                                        | `5`             |
 | `showNow`             | `boolean`                                       | `true`          |
 | `now`                 | `DateInput`                                     | `Date.now()`    |
+| `renderNow` ¹         | `(now: DateTime) => ReactNode`                  | —               |
+| `headerTiers` ¹       | `Partial<Record<ZoomLevel, HeaderTierSpecs>>`   | `DEFAULT_HEADER_TIERS` |
+| `showTicks` ¹         | `boolean`                                       | `false`         |
+| `renderSidebarHeader` ¹ | `() => ReactNode`                             | —               |
 | `renderBar`           | `(ctx) => ReactNode`                            | —               |
 | `renderLabel`         | `(ctx) => ReactNode`                            | —               |
+| `renderRowLabel` ¹    | `(ctx: RowLabelRenderContext) => ReactNode`     | `row.label`     |
 | `renderHeaderCell`    | `(tick, tier) => ReactNode`                     | —               |
 | `barClassName`        | `(task) => string \| undefined`                 | —               |
 | `barStyle`            | `(task) => CSSProperties \| undefined`          | —               |
@@ -436,7 +643,11 @@ côté application :
 - `computeDrag(input)`, `computeKeyboardStep(input)`
 - `snapToGrid(ms, snap, zone)`, `snapTime(ms, ctx)`, `nearestEdge(ms, edges, threshold)`, `snapUnitMs(snap)`
 - `flattenRows(tasks, expandedIds, parentMode)`, `getDropPosition(rows, rowIndex, task)`, `findTask(tasks, id)`
-- `toMs`, `toDateTime`, `computeRange`, `createTimeScale`, `msToPx`, `pxToMs`, `buildHeaderTicks`
+- `toMs`, `toDateTime`, `computeRange`, `createTimeScale`, `msToPx`, `pxToMs`,
+  `buildHeaderTicks(range, zoom, zone, locale, tiers?)`, `DEFAULT_HEADER_TIERS`
+- 1.1 : `packLanes(items)` (couloirs), `buildResourceLayout(rows, tasks, rowHeight, laneHeight)`,
+  `toIntervals(ranges)`, `clipRanges(intervals, startMs, endMs)`, `linkPath(from, to, type)`,
+  `selectLinks(links, mode, selected)`, `nextSelection(ids, action)`
 - Constantes `MINUTE`, `HOUR`, `DAY`, `WEEK`
 
 ---
@@ -482,7 +693,7 @@ const [preview, setPreview] = useState<DragPreview | null>(null);
 
 ```bash
 npm install
-npm run dev          # démo sur http://localhost:5173 (?dataset=big pour 3000 lignes)
+npm run dev          # démo sur http://localhost:5173 (?dataset=big pour 3000 lignes, ?dataset=resources pour l'atelier)
 npm run typecheck
 npm test             # Vitest : moteur pur + composant (jsdom, Testing Library)
 npm run test:e2e     # Playwright : vrais drags souris dans Chromium sur la démo
@@ -491,15 +702,59 @@ npm run build        # dist/ : index.js (ESM), index.cjs, index.d.ts, styles.css
 
 Organisation des tests :
 
-- `src/core/*.test.ts` : snap, drag, lignes, virtualisation, en-têtes, application des changements.
-  Le moteur est en fonctions pures pour être testé exhaustivement (cas limites, DST, seuils).
+- `src/core/*.test.ts` : snap, drag, lignes, virtualisation, en-têtes, application des changements,
+  couloirs, mode ressources, périodes fermées, liens, sélection. Le moteur est en fonctions pures
+  pour être testé exhaustivement (cas limites, DST, seuils).
 - `src/components/Gantt.test.tsx` : composant avec pointer events simulés (déplacement,
   redimensionnement, vertical, clavier, brouillon, virtualisation, zoom).
-- `e2e/gantt.spec.ts` : scénarios utilisateur dans un vrai navigateur, là où jsdom ne fait pas de
-  layout.
+- `src/components/GanttResources.test.tsx` et `GanttBoard.test.tsx` : mode ressources, périodes
+  fermées, en-tête, sélection, liens, `canDrop`, `dragFollowsPointer`, thème.
+- `e2e/gantt.spec.ts` et `e2e/resources.spec.ts` : scénarios utilisateur dans un vrai navigateur,
+  là où jsdom ne fait pas de layout.
+
+### Publier une version
+
+Les tags de release contiennent `dist/` pour que l'installation depuis Git fonctionne sans build
+(bun et pnpm n'exécutent pas `prepare` pour une dépendance Git) :
+
+```bash
+npm version 1.x.y --no-git-tag-version && npm run build
+git add -f dist package.json package-lock.json && git commit -m "chore(release): 1.x.y"
+git tag -a v1.x.y -m "1.x.y" && git rm -r -q --cached dist && git commit -m "chore: untrack dist after the 1.x.y release"
+git push origin <branche> v1.x.y
+```
 
 La CI GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) exécute l'ensemble à
 chaque push.
+
+## Changelog
+
+### 1.1.0
+
+Strictement additive : sans les nouvelles props, rendu et comportement identiques à la 1.0.
+
+- **Mode ressources** : `rows`, `task.rowId`, couloirs (`laneHeight`, `barInset`),
+  `renderRowLabel`, `TaskChange.rowId` / `previousRowId`, `DragPreview.rowId`,
+  `applyTaskChange` gère `rowId`, virtualisation à hauteurs variables.
+- **Périodes fermées** : `closedRanges`, `closedNarrowThreshold`, `--gantt-closed-bg`,
+  `--gantt-closed-hatch`, slot `closedRange`.
+- **En-tête** : `renderSidebarHeader`, `headerTiers` (unité, pas, format), `showTicks`
+  (`--gantt-tick-height`, slot `headerTick`), `renderNow` (slot `nowMarker`), `data-tier` sur
+  les cellules, `data-major` sur les lignes de grille.
+- **Sélection** : `selectedIds`, `onSelectionChange`, `highlightedIds`, `data-selected` /
+  `data-highlighted`, `isSelected` / `isHighlighted` dans `BarRenderContext`.
+- **Liens** : `links`, `showLinks`, slot `link`, `--gantt-link-color`.
+- **Glisser-déposer** : `canDrop` (`data-invalid`, `DragPreview.valid`), `dragFollowsPointer`
+  (indicateur de dépôt, slot `dropIndicator`) ; la ligne de la barre déplacée reste montée quand
+  elle sort de la fenêtre virtualisée (le geste n'est plus interrompu).
+- **Thème** : plus aucune couleur codée en dur (`--gantt-now-color`, `--gantt-focus-color`, …).
+- **CSS** : ordre des couches aligné sur Tailwind (`theme, base, components, utilities`).
+- **Distribution** : les tags de release contiennent `dist/` (installation avec bun).
+
+### 1.0.0
+
+Première version : sous-tâches en accordéon, déplacement et redimensionnement avec snap et
+aimant, déplacement vertical, mode brouillon, virtualisation, clavier.
 
 ## Licence
 
