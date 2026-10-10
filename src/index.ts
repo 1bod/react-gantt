@@ -14,6 +14,7 @@ export type {
 export type {
   GanttTask,
   GanttResourceRow,
+  ClosedRange,
   TaskChange,
   TaskPosition,
   DragPreview,
@@ -32,6 +33,8 @@ export { flattenRows, getDropPosition, findTask } from './core/rows';
 export { packLanes } from './core/lanes';
 export type { LaneItem, LaneLayout } from './core/lanes';
 export { buildResourceLayout } from './core/resources';
+export { clipRanges, toIntervals } from './core/closed';
+export type { Interval } from './core/closed';
 export type { ResourceLayout, ResourceRowLayout, ResourceBar } from './core/resources';
 export type { GanttRow, BarItem } from './core/rows';
 export { toMs, toDateTime, computeRange, createTimeScale, msToPx, pxToMs, MINUTE, HOUR, DAY, WEEK } from './core/time';

@@ -12,12 +12,13 @@ import {
   type WheelEvent,
 } from 'react';
 import { applyTaskChanges } from '../core/apply';
+import { clipRanges, toIntervals, type Interval as ClosedInterval } from '../core/closed';
 import { computeKeyboardStep } from '../core/drag';
 import { buildHeaderTicks } from '../core/header';
 import { buildResourceLayout, type ResourceBar, type ResourceRowLayout } from '../core/resources';
 import { findRowIndex, findTask, flattenRows, getDropPosition, isGroup, samePosition, type GanttRow } from '../core/rows';
 import { snapUnitMs } from '../core/snap';
-import { clamp, computeRange, createTimeScale, MINUTE, msToPx, scaleWidth, toDateTime, toMs } from '../core/time';
+import { clamp, computeRange, createTimeScale, MINUTE, msToPx, pxToMs, scaleWidth, toDateTime, toMs } from '../core/time';
 import { getVisibleRange, getVisibleRangeByOffsets } from '../core/virtual';
 import { useControllableSet } from '../hooks/useControllableSet';
 import { useDrag, type DragSession } from '../hooks/useDrag';
@@ -119,6 +120,8 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
     headerHeight = 48,
     overscan = 5,
     height = 500,
+    closedRanges,
+    closedNarrowThreshold = 30,
     showNow = true,
     now,
     renderBar,
@@ -507,6 +510,35 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
     return byRow;
   }, [layout, draft, pendingList]);
 
+  // Closed time: computed once per row (until the function or the rows change), drawn for the visible window only.
+  const displayedRows = resourceRows ?? rows;
+  const closedCache = useMemo(() => new Map<string, ClosedInterval[]>(), [closedRanges, displayedRows]);
+  const closedWindow = horizontalWindow
+    ? { start: Math.max(scale.startMs, pxToMs(scale, horizontalWindow.left)), end: Math.min(scale.endMs, pxToMs(scale, horizontalWindow.right)) }
+    : { start: scale.startMs, end: scale.endMs };
+  const renderClosed = (key: string, row: GanttResourceRow | GanttRow) => {
+    if (!closedRanges) return null;
+    let intervals = closedCache.get(key);
+    if (!intervals) {
+      intervals = toIntervals(closedRanges(row as GanttResourceRow<TRowData> | GanttRow));
+      closedCache.set(key, intervals);
+    }
+    return clipRanges(intervals, closedWindow.start, closedWindow.end).map((range, i) => {
+      const left = msToPx(scale, range.start);
+      const width = msToPx(scale, range.end) - left;
+      return (
+        <div
+          key={`closed-${i}-${range.start}`}
+          data-gantt="closed"
+          data-narrow={width < closedNarrowThreshold || undefined}
+          aria-hidden
+          className={cx('gantt-closed pointer-events-none absolute inset-y-0', c.closedRange)}
+          style={{ left, width }}
+        />
+      );
+    });
+  };
+
   const rootStyle: CSSProperties & Record<string, string | number> = {
     height,
     '--gantt-row-height': `${rowHeight}px`,
@@ -647,6 +679,7 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
           </div>
         </div>
         <div data-gantt="timeline-cell" className={cx('gantt-timeline-cell relative shrink-0', c.timelineCell)} style={{ width: timelineWidth }}>
+          {renderClosed(row.key, row)}
           {row.bars.map((bar) => renderBarItem({ task: bar.task, parent: bar.parent, lane: 0 }, rowIndex, row, null))}
         </div>
       </div>
@@ -700,6 +733,7 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
           </div>
         </div>
         <div data-gantt="timeline-cell" className={cx('gantt-timeline-cell relative shrink-0', c.timelineCell)} style={{ width: timelineWidth }}>
+          {renderClosed(row.key, row.row)}
           {pendingGhosts.get(rowIndex)?.map((ghost) => renderGhost(`pending-ghost-${ghost.id}`, ghost.start, ghost.end, ghost.lane))}
           {row.bars.map((bar) => renderBarItem(bar, rowIndex, taskRowOf(bar), row.row))}
         </div>

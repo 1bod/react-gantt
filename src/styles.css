@@ -3,7 +3,7 @@
  * this file never resets the host application's styles.
  * Consumers: import '@1bod/react-gantt/styles.css'
  */
-@layer theme, utilities;
+@layer theme, base, components, utilities;
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css' layer(utilities);
 
@@ -24,6 +24,8 @@
   --gantt-muted: #6b7280;
   --gantt-pending-color: #f59e0b;
   --gantt-drop-color: #2563eb;
+  --gantt-closed-bg: #f3f4f6;
+  --gantt-closed-hatch: #e5e7eb;
   --gantt-font: ui-sans-serif, system-ui, sans-serif;
   font-family: var(--gantt-font);
   color: var(--gantt-text);
@@ -58,4 +60,20 @@
 
 .gantt-row[data-drop-target='true'] {
   box-shadow: inset 0 0 0 2px var(--gantt-drop-color);
+}
+
+/*
+ * 1.1 defaults live in the `components` layer: utilities passed through `classNames`
+ * (and any unlayered rule of the host application) win over them.
+ */
+@layer components {
+  /* Closed time: plain fill plus a 45° hatch. A transparent hatch gives a plain fill. */
+  .gantt-closed {
+    background-color: var(--gantt-closed-bg);
+    background-image: repeating-linear-gradient(45deg, var(--gantt-closed-hatch) 0 1px, transparent 1px 6px);
+  }
+
+  .gantt-closed[data-narrow='true'] {
+    background-image: none;
+  }
 }

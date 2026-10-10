@@ -45,6 +45,12 @@ export interface GanttResourceRow<TRowData = unknown> {
   data?: TRowData;
 }
 
+/** A period during which a row is not available (night, weekend, maintenance…). */
+export interface ClosedRange {
+  start: DateInput;
+  end: DateInput;
+}
+
 /** Where a task lives in the tree: `parentId` is `null` at the root level. */
 export interface TaskPosition {
   parentId: string | null;

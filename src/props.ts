@@ -2,7 +2,7 @@ import type { DateTime } from 'luxon';
 import type { CSSProperties, ReactNode } from 'react';
 import type { HeaderTick } from './core/header';
 import type { GanttRow } from './core/rows';
-import type { DateInput, DragPreview, GanttResourceRow, GanttTask, ParentMode, SnapMode, TaskChange, ZoomLevel } from './types';
+import type { ClosedRange, DateInput, DragPreview, GanttResourceRow, GanttTask, ParentMode, SnapMode, TaskChange, ZoomLevel } from './types';
 
 export type GanttSlot =
   | 'root'
@@ -25,6 +25,7 @@ export type GanttSlot =
   | 'sidebarLabel'
   | 'toggle'
   | 'timelineCell'
+  | 'closedRange'
   | 'bar'
   | 'barGroup'
   | 'barChild'
@@ -169,6 +170,14 @@ export interface GanttProps<TData = unknown, TRowData = unknown> {
   overscan?: number;
   /** Height of the component. The body scrolls inside it. Default `500`. */
   height?: number | string;
+  /**
+   * Closed time of a row, drawn as shaded blocks behind the bars. Called with the resource
+   * row in resource mode, with the task row in task mode (`'task' in row`). Results are
+   * cached until the function or the rows change: pass a stable function.
+   */
+  closedRanges?: (row: GanttResourceRow<TRowData> | GanttRow) => ClosedRange[];
+  /** Closed blocks narrower than this (pixels) get `data-narrow` (no hatch by default). Default `30`. */
+  closedNarrowThreshold?: number;
   /** Draw a vertical line at the current time. Default `true`. */
   showNow?: boolean;
   /** Override the current time (testing, "as of" views). */
