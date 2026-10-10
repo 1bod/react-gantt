@@ -24,6 +24,7 @@ import { useControllableSet } from '../hooks/useControllableSet';
 import { useDrag, type DragSession } from '../hooks/useDrag';
 import type { DragResult } from '../core/drag';
 import { useScrollViewport } from '../hooks/useScrollViewport';
+import { useSelection } from '../hooks/useSelection';
 import type { GanttHandle, GanttLabels, GanttProps } from '../props';
 import type { ChangeReason, DragPreview, GanttResourceRow, GanttTask, TaskChange, TaskPosition, ZoomLevel } from '../types';
 import { DraftToolbar } from './DraftToolbar';
@@ -109,6 +110,9 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
     onTaskChange,
     onDragPreview,
     onTaskClick,
+    selectedIds,
+    onSelectionChange,
+    highlightedIds,
     draft = false,
     onDraftChange,
     onDraftCommit,
@@ -146,6 +150,9 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [viewport, onScroll] = useScrollViewport(scrollerRef);
   const [expanded, toggleExpanded] = useControllableSet(expandedIds, defaultExpandedIds, onExpandedChange);
+  const selectable = selectedIds !== undefined || onSelectionChange !== undefined;
+  const [selected, dispatchSelection] = useSelection(selectedIds, onSelectionChange);
+  const highlighted = useMemo(() => new Set(highlightedIds ?? []), [highlightedIds]);
 
   // ----- Draft mode state -------------------------------------------------
   const [pending, setPending] = useState<Map<string, TaskChange>>(() => new Map());
@@ -317,8 +324,9 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
       if (!found) return;
       onTaskClick?.(found.task as GanttTask<TData>, event);
       if (!layout && isGroup(found.task)) toggleExpanded(found.task.id);
+      if (selectable) dispatchSelection({ type: 'select', id: found.task.id, additive: event.shiftKey || event.metaKey || event.ctrlKey });
     },
-    [effectiveTasks, onTaskClick, toggleExpanded, layout],
+    [effectiveTasks, onTaskClick, toggleExpanded, layout, selectable, dispatchSelection],
   );
 
   const handlePreview = useCallback(
@@ -415,6 +423,9 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
           if (!layout && isGroup(task)) {
             event.preventDefault();
             toggleExpanded(task.id);
+          } else if (selectable) {
+            event.preventDefault();
+            dispatchSelection({ type: 'select', id: task.id, additive: event.shiftKey || event.metaKey || event.ctrlKey });
           }
           return;
         }
@@ -422,7 +433,35 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
           return;
       }
     },
-    [readOnly, intervals, allowResize, allowVerticalMove, snap, minDurationMs, zone, rows, rowCount, layout, buildChange, emitChange, toggleExpanded],
+    [readOnly, intervals, allowResize, allowVerticalMove, snap, minDurationMs, zone, rows, rowCount, layout, buildChange, emitChange, toggleExpanded, selectable, dispatchSelection],
+  );
+
+  // ----- Selection --------------------------------------------------------
+  const rootRef = useRef<HTMLDivElement>(null);
+  const dragActiveRef = useRef(false);
+  dragActiveRef.current = drag !== null;
+  const hasSelection = selected.size > 0;
+  useEffect(() => {
+    if (!selectable || !hasSelection) return;
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented || dragActiveRef.current) return;
+      // Only when the gantt (or nothing) has the focus: Escape in a dialog is not ours.
+      const target = event.target as Node | null;
+      if (target && target !== document.body && target !== document.documentElement && !rootRef.current?.contains(target)) return;
+      dispatchSelection({ type: 'clear' });
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectable, hasSelection, dispatchSelection]);
+
+  const handleContentClick = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!selectable) return;
+      const target = event.target as Element;
+      if (!target.closest('[data-gantt="timeline-cell"]') || target.closest('[data-gantt="bar"]')) return;
+      dispatchSelection({ type: 'clear' });
+    },
+    [selectable, dispatchSelection],
   );
 
   // ----- Zoom -------------------------------------------------------------
@@ -593,6 +632,8 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
       isDragging,
       isPending,
       isGroup: barIsGroup,
+      isSelected: selected.has(bar.task.id),
+      isHighlighted: highlighted.has(bar.task.id),
     };
     const top = barTop(bar.lane);
     return (
@@ -610,6 +651,8 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
           isPending={isPending}
           isGroup={barIsGroup}
           isChild={bar.parent !== null}
+          isSelected={ctx.isSelected}
+          isHighlighted={ctx.isHighlighted}
           interactive={!readOnly}
           showHandles={!readOnly && allowResize}
           ariaLabel={labels.bar(bar.task, ctx.start, ctx.end)}
@@ -637,6 +680,7 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
         data-task-id={row.task.id}
         data-kind={row.kind}
         data-drop-target={isDropTarget || undefined}
+        data-has-selection={(hasSelection && row.bars.some((bar) => selected.has(bar.task.id))) || undefined}
         className={cx(
           'gantt-row absolute left-0 flex border-b border-[var(--gantt-grid-color)]',
           rowIndex % 2 === 1 ? 'bg-[var(--gantt-row-alt-bg)]' : 'bg-[var(--gantt-bg)]',
@@ -693,6 +737,7 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
   const renderResourceRow = (row: ResourceRowLayout) => {
     const rowIndex = row.index;
     const isDropTarget = rowIndex === dropRowIndex;
+    const rowHasSelection = hasSelection && row.bars.some((bar) => selected.has(bar.task.id));
     return (
       <div
         key={row.key}
@@ -702,6 +747,7 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
         data-kind="resource"
         data-lanes={row.laneCount}
         data-drop-target={isDropTarget || undefined}
+        data-has-selection={rowHasSelection || undefined}
         className={cx(
           'gantt-row absolute left-0 flex border-b border-[var(--gantt-grid-color)]',
           rowIndex % 2 === 1 ? 'bg-[var(--gantt-row-alt-bg)]' : 'bg-[var(--gantt-bg)]',
@@ -731,6 +777,7 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
                     index: rowIndex,
                     tasks: row.bars.map((bar) => bar.task as GanttTask<TData>),
                     laneCount: row.laneCount,
+                    hasSelection: rowHasSelection,
                   })
                 : row.row.label}
             </div>
@@ -764,6 +811,7 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
 
   return (
     <div
+      ref={rootRef}
       data-gantt="root"
       data-dragging={drag ? drag.session.kind : undefined}
       className={cx('gantt-root relative overflow-hidden', className, c.root)}
@@ -776,7 +824,7 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
         onScroll={onScroll}
         onWheel={handleWheel}
       >
-        <div className="relative" style={{ width: totalWidth, height: headerHeight + bodyHeight }}>
+        <div className="relative" style={{ width: totalWidth, height: headerHeight + bodyHeight }} onClick={selectable ? handleContentClick : undefined}>
           <TimelineHeader
             tiers={tiers}
             scale={scale}

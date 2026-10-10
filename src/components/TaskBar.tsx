@@ -16,6 +16,8 @@ export interface TaskBarProps {
   isPending: boolean;
   isGroup: boolean;
   isChild: boolean;
+  isSelected?: boolean;
+  isHighlighted?: boolean;
   interactive: boolean;
   showHandles: boolean;
   ariaLabel: string;
@@ -39,7 +41,7 @@ export function TaskBar(props: TaskBarProps) {
     top: props.top ?? '15%',
     height: props.height ?? '70%',
     transform: props.translateY ? `translateY(${props.translateY}px)` : undefined,
-    zIndex: props.isDragging ? 10 : 2,
+    zIndex: props.isDragging ? 10 : props.isSelected ? 3 : 2,
     '--gantt-bar-bg': task.color,
     ...props.style,
   };
@@ -49,6 +51,8 @@ export function TaskBar(props: TaskBarProps) {
       data-task-id={task.id}
       data-dragging={props.isDragging || undefined}
       data-pending={props.isPending || undefined}
+      data-selected={props.isSelected || undefined}
+      data-highlighted={props.isHighlighted || undefined}
       data-kind={props.isGroup ? 'group' : props.isChild ? 'child' : 'leaf'}
       role="button"
       tabIndex={props.interactive ? 0 : -1}
@@ -62,6 +66,8 @@ export function TaskBar(props: TaskBarProps) {
         props.isChild && c.barChild,
         props.isPending && c.barPending,
         props.isDragging && c.barDragging,
+        props.isSelected && c.barSelected,
+        props.isHighlighted && c.barHighlighted,
         props.className,
       )}
       style={style}

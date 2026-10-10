@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GanttRow } from '../core/rows';
-import { baseProps, DAY_START, getResourceRow, H, makeResourceRows, makeResourceTasks, makeTasks, resourceProps } from '../test-utils';
+import { baseProps, DAY_START, dragBy, getBar, getResourceRow, H, makeResourceRows, makeResourceTasks, makeTasks, resourceProps } from '../test-utils';
 import type { ClosedRange, GanttResourceRow } from '../types';
 import { Gantt } from './Gantt';
 
@@ -118,5 +119,146 @@ describe('header', () => {
     expect(cells('bottom')[0]).not.toHaveClass('justify-center');
     expect(cells('bottom')[0]).not.toHaveClass('border-r');
     expect(cells('top')[0]).toHaveClass('border-r');
+  });
+});
+
+describe('selection', () => {
+  const click = (bar: HTMLElement, init: { shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean } = {}) => {
+    fireEvent.pointerDown(bar, { pointerId: 1, button: 0, clientX: 100, clientY: 100, ...init });
+    fireEvent.pointerUp(bar, { pointerId: 1, button: 0, clientX: 100, clientY: 100, ...init });
+  };
+
+  function Controlled(props: { initial?: string[]; onChange?: (ids: string[]) => void; highlightedIds?: string[] }) {
+    const [ids, setIds] = useState<string[]>(props.initial ?? []);
+    return (
+      <Gantt
+        {...resourceProps}
+        rows={makeResourceRows()}
+        tasks={makeResourceTasks()}
+        selectedIds={ids}
+        highlightedIds={props.highlightedIds}
+        onSelectionChange={(next) => {
+          props.onChange?.(next);
+          setIds(next);
+        }}
+        renderBar={({ task, isSelected, isHighlighted }) => `${task.id}${isSelected ? '*' : ''}${isHighlighted ? '+' : ''}`}
+        renderRowLabel={({ row, hasSelection }) => `${row.id}${hasSelection ? '*' : ''}`}
+      />
+    );
+  }
+
+  it('a click selects one bar, shift / cmd / ctrl + click toggles', () => {
+    const onChange = vi.fn();
+    render(<Controlled onChange={onChange} />);
+    click(getBar('a'));
+    expect(onChange).toHaveBeenLastCalledWith(['a']);
+    expect(getBar('a')).toHaveAttribute('data-selected', 'true');
+    expect(getBar('a')).toHaveStyle({ zIndex: '3' });
+    expect(screen.getByText('a*')).toBeInTheDocument();
+    click(getBar('c'), { shiftKey: true });
+    expect(onChange).toHaveBeenLastCalledWith(['a', 'c']);
+    click(getBar('d'), { metaKey: true });
+    click(getBar('a'), { ctrlKey: true });
+    expect(onChange).toHaveBeenLastCalledWith(['c', 'd']);
+    expect(getBar('a')).not.toHaveAttribute('data-selected');
+    click(getBar('b'));
+    expect(onChange).toHaveBeenLastCalledWith(['b']);
+    // Clicking the selected bar again changes nothing.
+    onChange.mockClear();
+    click(getBar('b'));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('marks the rows holding a selected bar', () => {
+    render(<Controlled initial={['b']} />);
+    expect(getResourceRow('m1')).toHaveAttribute('data-has-selection', 'true');
+    expect(getResourceRow('m2')).not.toHaveAttribute('data-has-selection');
+    expect(screen.getByText('m1*')).toBeInTheDocument();
+  });
+
+  it('Escape clears, unless the focus is outside the gantt or a drag is running', () => {
+    const onChange = vi.fn();
+    render(
+      <>
+        <input aria-label="elsewhere" />
+        <Controlled initial={['a']} onChange={onChange} />
+      </>,
+    );
+    fireEvent.keyDown(screen.getByLabelText('elsewhere'), { key: 'Escape' });
+    expect(onChange).not.toHaveBeenCalled();
+    dragBy(getBar('c'), 30, 0, { hold: true });
+    fireEvent.keyDown(window, { key: 'Escape' }); // cancels the drag only
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.keyDown(getBar('a'), { key: 'Escape' });
+    expect(onChange).toHaveBeenLastCalledWith([]);
+    expect(getBar('a')).not.toHaveAttribute('data-selected');
+  });
+
+  it('Escape from the document body clears', () => {
+    const onChange = vi.fn();
+    render(<Controlled initial={['a']} onChange={onChange} />);
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(onChange).toHaveBeenLastCalledWith([]);
+  });
+
+  it('a click on the empty grid clears, a click in the sidebar does not', () => {
+    const onChange = vi.fn();
+    render(<Controlled initial={['a']} onChange={onChange} />);
+    fireEvent.click(screen.getByText('m2'));
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.click(getBar('a'));
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.click(getResourceRow('m2').querySelector('[data-gantt="timeline-cell"]')!);
+    expect(onChange).toHaveBeenLastCalledWith([]);
+  });
+
+  it('Enter / Space select from the keyboard', () => {
+    const onChange = vi.fn();
+    render(<Controlled onChange={onChange} />);
+    fireEvent.keyDown(getBar('c'), { key: 'Enter' });
+    expect(onChange).toHaveBeenLastCalledWith(['c']);
+    fireEvent.keyDown(getBar('d'), { key: ' ', shiftKey: true });
+    expect(onChange).toHaveBeenLastCalledWith(['c', 'd']);
+  });
+
+  it('works uncontrolled with onSelectionChange only', () => {
+    const onSelectionChange = vi.fn();
+    render(<Gantt {...baseProps} tasks={makeTasks()} onSelectionChange={onSelectionChange} />);
+    click(getBar('a'));
+    expect(getBar('a')).toHaveAttribute('data-selected', 'true');
+    expect(document.querySelector('[data-gantt="row"][data-task-id="a"]')).toHaveAttribute('data-has-selection', 'true');
+    // Groups still toggle on click, and get selected too.
+    click(getBar('g'));
+    expect(onSelectionChange).toHaveBeenLastCalledWith(['g']);
+    expect(document.querySelector('[data-gantt="row"][data-task-id="g1"]')).not.toBeNull();
+  });
+
+  it('is disabled without selectedIds / onSelectionChange', () => {
+    render(<Gantt {...baseProps} tasks={makeTasks()} />);
+    click(getBar('a'));
+    expect(getBar('a')).not.toHaveAttribute('data-selected');
+    fireEvent.keyDown(getBar('a'), { key: 'Enter' });
+    expect(getBar('a')).not.toHaveAttribute('data-selected');
+  });
+
+  it('highlights bars', () => {
+    render(<Controlled highlightedIds={['c', 'd']} />);
+    expect(getBar('c')).toHaveAttribute('data-highlighted', 'true');
+    expect(getBar('a')).not.toHaveAttribute('data-highlighted');
+    expect(screen.getByText('d+')).toBeInTheDocument();
+  });
+
+  it('accepts slot classes', () => {
+    render(
+      <Gantt
+        {...baseProps}
+        tasks={makeTasks()}
+        selectedIds={['a']}
+        highlightedIds={['b']}
+        classNames={{ barSelected: 'is-selected', barHighlighted: 'is-highlighted' }}
+      />,
+    );
+    expect(getBar('a')).toHaveClass('is-selected');
+    expect(getBar('b')).toHaveClass('is-highlighted');
   });
 });

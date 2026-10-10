@@ -32,6 +32,8 @@ export type GanttSlot =
   | 'barChild'
   | 'barPending'
   | 'barDragging'
+  | 'barSelected'
+  | 'barHighlighted'
   | 'barLabel'
   | 'handle'
   | 'ghost'
@@ -66,6 +68,8 @@ export interface BarRenderContext<TData = unknown, TRowData = unknown> {
   isDragging: boolean;
   isPending: boolean;
   isGroup: boolean;
+  isSelected: boolean;
+  isHighlighted: boolean;
 }
 
 export interface LabelRenderContext<TData = unknown> {
@@ -82,6 +86,8 @@ export interface RowLabelRenderContext<TData = unknown, TRowData = unknown> {
   /** Tasks drawn on the row, ordered by start then id. */
   tasks: GanttTask<TData>[];
   laneCount: number;
+  /** One of the row's bars is selected. */
+  hasSelection: boolean;
 }
 
 export interface DraftToolbarRenderContext {
@@ -149,6 +155,16 @@ export interface GanttProps<TData = unknown, TRowData = unknown> {
   /** Fires continuously during a drag, then once with `null` when the drag ends. */
   onDragPreview?: (preview: DragPreview | null) => void;
   onTaskClick?: (task: GanttTask<TData>, event: React.PointerEvent<HTMLElement>) => void;
+
+  /**
+   * Selected bars (controlled). A click selects one bar, shift / cmd / ctrl + click toggles
+   * it, Escape or a click on the empty grid clears. Selection is enabled as soon as
+   * `selectedIds` or `onSelectionChange` is given (internal state with the latter only).
+   */
+  selectedIds?: string[];
+  onSelectionChange?: (ids: string[]) => void;
+  /** Bars to emphasise (e.g. the other operations of the selected order): `data-highlighted`. */
+  highlightedIds?: string[];
 
   /**
    * Draft mode: changes are collected instead of being emitted through `onTaskChange`,

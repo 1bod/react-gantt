@@ -27,6 +27,8 @@
   --gantt-closed-bg: #f3f4f6;
   --gantt-closed-hatch: #e5e7eb;
   --gantt-tick-height: 6px;
+  --gantt-selected-color: #2563eb;
+  --gantt-highlight-color: #93c5fd;
   --gantt-font: ui-sans-serif, system-ui, sans-serif;
   font-family: var(--gantt-font);
   color: var(--gantt-text);
@@ -76,5 +78,16 @@
 
   .gantt-closed[data-narrow='true'] {
     background-image: none;
+  }
+
+  /* Selection is instant: no transition. */
+  .gantt-bar[data-highlighted='true'] {
+    outline: 2px solid var(--gantt-highlight-color);
+    outline-offset: 1px;
+  }
+
+  .gantt-bar[data-selected='true'] {
+    outline: 2px solid var(--gantt-selected-color);
+    outline-offset: 1px;
   }
 }
