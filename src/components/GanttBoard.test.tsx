@@ -331,3 +331,42 @@ describe('links', () => {
     expect(drawnIds()).toEqual(['near']);
   });
 });
+
+describe('now line and theming', () => {
+  it('the now line takes its colour from --gantt-now-color', () => {
+    render(<Gantt {...baseProps} tasks={makeTasks()} showNow now={DAY_START + 6 * H} />);
+    expect(document.querySelector('[data-gantt="now"]')).toHaveClass('bg-[var(--gantt-now-color)]');
+    expect(document.querySelector('[data-gantt="now"]')!.className).not.toMatch(/red|blue|black|white/);
+  });
+
+  it('renderNow draws content in the header at the now position', () => {
+    const { rerender } = render(
+      <Gantt
+        {...baseProps}
+        tasks={makeTasks()}
+        showNow
+        now={DAY_START + 14.5 * H}
+        renderNow={(now) => <span>{now.toFormat('HH:mm')}</span>}
+        classNames={{ nowMarker: 'my-now' }}
+      />,
+    );
+    const marker = document.querySelector<HTMLElement>('[data-gantt="now-marker"]')!;
+    expect(marker).toHaveStyle({ left: `${14.5 * 60}px`, height: '24px' });
+    expect(marker).toHaveClass('my-now');
+    expect(marker).toHaveTextContent('14:30');
+    expect(document.querySelector('[data-gantt="header-timeline"]')).toContainElement(marker);
+    rerender(<Gantt {...baseProps} tasks={makeTasks()} showNow={false} now={DAY_START + 14.5 * H} renderNow={() => 'now'} />);
+    expect(document.querySelector('[data-gantt="now-marker"]')).toBeNull();
+    rerender(<Gantt {...baseProps} tasks={makeTasks()} showNow now={DAY_START + 48 * H} renderNow={() => 'now'} />);
+    expect(document.querySelector('[data-gantt="now-marker"]')).toBeNull();
+  });
+
+  it('interactive parts use variables, not fixed colours', () => {
+    render(<Gantt {...baseProps} draft tasks={makeTasks()} />);
+    dragBy(getBar('a'), 60, 0);
+    const classes = [getBar('a'), ...document.querySelectorAll('[data-handle], [data-gantt="toggle"], [data-gantt="draft-toolbar"] button')]
+      .map((el) => el.className)
+      .join(' ');
+    expect(classes).not.toMatch(/-(red|blue|black|white)\b|text-white|bg-black/);
+  });
+});

@@ -132,6 +132,7 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
     closedNarrowThreshold = 30,
     showNow = true,
     now,
+    renderNow,
     renderBar,
     renderLabel,
     renderRowLabel,
@@ -520,6 +521,7 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
   // ----- Rendering --------------------------------------------------------
   const nowMs = now !== undefined ? toMs(now) : Date.now();
   const nowPx = msToPx(scale, nowMs);
+  const nowVisible = showNow && nowMs >= timeRange.startMs && nowMs <= timeRange.endMs;
   const gridLines = useMemo(() => {
     const majors = new Set(tiers.top.map((t) => t.startMs));
     return visibleTicks(tiers.bottom, scale, horizontalWindow).map((tick) => ({
@@ -724,7 +726,7 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
               aria-expanded={row.expanded}
               aria-label={row.expanded ? labels.collapse : labels.expand}
               onClick={toggle}
-              className={cx('gantt-toggle flex h-5 w-5 shrink-0 items-center justify-center rounded text-[var(--gantt-muted)] hover:bg-black/10', c.toggle)}
+              className={cx('gantt-toggle flex h-5 w-5 shrink-0 items-center justify-center rounded text-[var(--gantt-muted)] hover:bg-[var(--gantt-toggle-hover-bg)]', c.toggle)}
             >
               <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden style={{ transform: row.expanded ? 'rotate(90deg)' : undefined }}>
                 <path d="M3 1l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" />
@@ -853,6 +855,7 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
             renderHeaderCell={renderHeaderCell}
             renderSidebarHeader={renderSidebarHeader}
             showTicks={showTicks}
+            nowMarker={nowVisible && renderNow ? { left: nowPx, content: renderNow(toDateTime(nowMs, zone)) } : null}
           />
           <div
             data-gantt="grid"
@@ -874,10 +877,10 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
                 style={{ left: line.left }}
               />
             ))}
-            {showNow && nowMs >= timeRange.startMs && nowMs <= timeRange.endMs && (
+            {nowVisible && (
               <div
                 data-gantt="now"
-                className={cx('gantt-now-line absolute inset-y-0 z-10 w-px bg-red-500', c.nowLine)}
+                className={cx('gantt-now-line absolute inset-y-0 z-10 w-px bg-[var(--gantt-now-color)]', c.nowLine)}
                 style={{ left: nowPx }}
               />
             )}

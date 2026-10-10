@@ -24,6 +24,15 @@
   --gantt-muted: #6b7280;
   --gantt-pending-color: #f59e0b;
   --gantt-drop-color: #2563eb;
+  --gantt-drop-text: #ffffff;
+  --gantt-now-color: oklch(63.7% 0.237 25.331); /* Tailwind red-500, the 1.0 now line */
+  --gantt-focus-color: oklch(62.3% 0.214 259.815); /* Tailwind blue-500 */
+  --gantt-handle-hover-bg: rgb(0 0 0 / 0.2);
+  --gantt-toggle-hover-bg: rgb(0 0 0 / 0.1);
+  --gantt-button-hover-bg: rgb(0 0 0 / 0.05);
+  --gantt-ghost-hatch: rgb(0 0 0 / 0.08);
+  --gantt-drag-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+  --gantt-toolbar-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
   --gantt-closed-bg: #f3f4f6;
   --gantt-closed-hatch: #e5e7eb;
   --gantt-tick-height: 6px;
@@ -48,7 +57,9 @@
 
 .gantt-bar[data-dragging='true'] {
   opacity: 0.85;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+  box-shadow: var(--gantt-drag-shadow);
+  /* The dragged bar follows the pointer 1:1, even if the host adds transitions to bars. */
+  transition: none;
 }
 
 .gantt-ghost {
@@ -56,8 +67,8 @@
     45deg,
     transparent,
     transparent 4px,
-    rgb(0 0 0 / 0.08) 4px,
-    rgb(0 0 0 / 0.08) 8px
+    var(--gantt-ghost-hatch) 4px,
+    var(--gantt-ghost-hatch) 8px
   );
   border: 1px dashed var(--gantt-muted);
 }
@@ -79,6 +90,10 @@
 
   .gantt-closed[data-narrow='true'] {
     background-image: none;
+  }
+
+  .gantt-draft-toolbar {
+    box-shadow: var(--gantt-toolbar-shadow);
   }
 
   .gantt-link {

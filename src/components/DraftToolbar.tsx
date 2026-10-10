@@ -19,7 +19,7 @@ export function DraftToolbar({ changes, commit, discard, labels, classNames: c }
       data-gantt="draft-toolbar"
       role="status"
       className={cx(
-        'gantt-draft-toolbar absolute right-3 bottom-3 z-50 flex items-center gap-2 rounded-lg border border-[var(--gantt-grid-major-color)] bg-[var(--gantt-bg)] px-3 py-2 text-sm shadow-lg',
+        'gantt-draft-toolbar absolute right-3 bottom-3 z-50 flex items-center gap-2 rounded-lg border border-[var(--gantt-grid-major-color)] bg-[var(--gantt-bg)] px-3 py-2 text-sm',
         c.draftToolbar,
       )}
     >
@@ -27,7 +27,7 @@ export function DraftToolbar({ changes, commit, discard, labels, classNames: c }
       <button
         type="button"
         onClick={discard}
-        className={cx('gantt-draft-button rounded-md border border-[var(--gantt-grid-major-color)] px-2 py-1 hover:bg-black/5', c.draftButton)}
+        className={cx('gantt-draft-button rounded-md border border-[var(--gantt-grid-major-color)] px-2 py-1 hover:bg-[var(--gantt-button-hover-bg)]', c.draftButton)}
       >
         {labels.discard}
       </button>
@@ -35,7 +35,7 @@ export function DraftToolbar({ changes, commit, discard, labels, classNames: c }
         type="button"
         onClick={commit}
         className={cx(
-          'gantt-draft-button gantt-draft-button-primary rounded-md bg-[var(--gantt-drop-color)] px-2 py-1 text-white hover:opacity-90',
+          'gantt-draft-button gantt-draft-button-primary rounded-md bg-[var(--gantt-drop-color)] px-2 py-1 text-[color:var(--gantt-drop-text)] hover:opacity-90',
           c.draftButton,
           c.draftButtonPrimary,
         )}

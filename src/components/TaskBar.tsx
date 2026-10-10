@@ -59,7 +59,7 @@ export function TaskBar(props: TaskBarProps) {
       aria-label={props.ariaLabel}
       className={cx(
         'gantt-bar absolute flex items-center rounded-md text-xs select-none touch-none',
-        props.interactive ? 'cursor-grab focus:outline-2 focus:outline-offset-1 focus:outline-blue-500' : 'cursor-default',
+        props.interactive ? 'cursor-grab focus:outline-2 focus:outline-offset-1 focus:outline-[color:var(--gantt-focus-color)]' : 'cursor-default',
         props.isDragging && 'cursor-grabbing',
         c.bar,
         props.isGroup && c.barGroup,
@@ -78,7 +78,7 @@ export function TaskBar(props: TaskBarProps) {
         <div
           data-handle="start"
           aria-hidden
-          className={cx('gantt-handle absolute inset-y-0 left-0 w-2 cursor-ew-resize rounded-l-md hover:bg-black/20', c.handle)}
+          className={cx('gantt-handle absolute inset-y-0 left-0 w-2 cursor-ew-resize rounded-l-md hover:bg-[var(--gantt-handle-hover-bg)]', c.handle)}
         />
       )}
       <div className={cx('gantt-bar-label min-w-0 flex-1 truncate px-2', c.barLabel)}>{props.children}</div>
@@ -86,7 +86,7 @@ export function TaskBar(props: TaskBarProps) {
         <div
           data-handle="end"
           aria-hidden
-          className={cx('gantt-handle absolute inset-y-0 right-0 w-2 cursor-ew-resize rounded-r-md hover:bg-black/20', c.handle)}
+          className={cx('gantt-handle absolute inset-y-0 right-0 w-2 cursor-ew-resize rounded-r-md hover:bg-[var(--gantt-handle-hover-bg)]', c.handle)}
         />
       )}
     </div>

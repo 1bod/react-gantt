@@ -16,6 +16,8 @@ export interface TimelineHeaderProps {
   renderSidebarHeader?: () => ReactNode;
   /** Tick marks on the bottom tier, labels anchored at their tick. */
   showTicks?: boolean;
+  /** Content drawn in the bottom tier, centred on the now line. */
+  nowMarker?: { left: number; content: ReactNode } | null;
 }
 
 function cx(...parts: Array<string | false | null | undefined>): string {
@@ -88,6 +90,15 @@ export function TimelineHeader(props: TimelineHeaderProps) {
       <div data-gantt="header-timeline" className={cx('gantt-header-timeline relative shrink-0', c.headerTimeline)} style={{ width: props.timelineWidth }}>
         {renderTier(tiers.top, 'top')}
         {renderTier(tiers.bottom, 'bottom')}
+        {props.nowMarker && (
+          <div
+            data-gantt="now-marker"
+            className={cx('gantt-now-marker absolute bottom-0 z-10 flex w-0 items-center justify-center overflow-visible', c.nowMarker)}
+            style={{ left: props.nowMarker.left, height: tierHeight }}
+          >
+            {props.nowMarker.content}
+          </div>
+        )}
       </div>
     </div>
   );

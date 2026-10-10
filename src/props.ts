@@ -19,6 +19,7 @@ export type GanttSlot =
   | 'gridLine'
   | 'gridLineMajor'
   | 'nowLine'
+  | 'nowMarker'
   | 'row'
   | 'rowGroup'
   | 'rowChild'
@@ -206,6 +207,8 @@ export interface GanttProps<TData = unknown, TRowData = unknown> {
   showNow?: boolean;
   /** Override the current time (testing, "as of" views). */
   now?: DateInput;
+  /** Content drawn in the bottom header tier, centred on the now line (e.g. a time chip). */
+  renderNow?: (now: DateTime) => ReactNode;
 
   renderBar?: (ctx: BarRenderContext<TData, TRowData>) => ReactNode;
   renderLabel?: (ctx: LabelRenderContext<TData>) => ReactNode;
