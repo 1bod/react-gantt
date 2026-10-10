@@ -8,10 +8,12 @@ export type {
   GanttSlot,
   BarRenderContext,
   LabelRenderContext,
+  RowLabelRenderContext,
   DraftToolbarRenderContext,
 } from './props';
 export type {
   GanttTask,
+  GanttResourceRow,
   TaskChange,
   TaskPosition,
   DragPreview,
@@ -27,6 +29,10 @@ export type { DragInput, DragResult, DragKind } from './core/drag';
 export { snapToGrid, snapTime, nearestEdge, snapUnitMs } from './core/snap';
 export type { SnapContext, SnapResult } from './core/snap';
 export { flattenRows, getDropPosition, findTask } from './core/rows';
+export { packLanes } from './core/lanes';
+export type { LaneItem, LaneLayout } from './core/lanes';
+export { buildResourceLayout } from './core/resources';
+export type { ResourceLayout, ResourceRowLayout, ResourceBar } from './core/resources';
 export type { GanttRow, BarItem } from './core/rows';
 export { toMs, toDateTime, computeRange, createTimeScale, msToPx, pxToMs, MINUTE, HOUR, DAY, WEEK } from './core/time';
 export type { TimeScale, TimeRange } from './core/time';

@@ -7,6 +7,9 @@ export interface TaskBarProps {
   task: GanttTask;
   left: number;
   width: number;
+  /** Vertical placement inside the row. Default `15%` / `70%`. */
+  top?: number | string;
+  height?: number | string;
   /** Vertical offset in pixels while being dragged onto another row. */
   translateY: number;
   isDragging: boolean;
@@ -33,8 +36,8 @@ export function TaskBar(props: TaskBarProps) {
   const style: CSSProperties & Record<string, string | number | undefined> = {
     left: props.left,
     width: props.width,
-    top: '15%',
-    height: '70%',
+    top: props.top ?? '15%',
+    height: props.height ?? '70%',
     transform: props.translateY ? `translateY(${props.translateY}px)` : undefined,
     zIndex: props.isDragging ? 10 : 2,
     '--gantt-bar-bg': task.color,

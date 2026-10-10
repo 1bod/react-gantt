@@ -2,6 +2,7 @@ import { DateTime } from 'luxon';
 import type { SnapMode } from '../types';
 import { clamp, HOUR, type TimeScale } from './time';
 import { nearestEdge, snapTime, snapToGrid, snapUnitMs, type SnapContext, type SnapSource } from './snap';
+import { findRowAt } from './virtual';
 
 export type DragKind = 'move' | 'resize-start' | 'resize-end';
 
@@ -20,6 +21,13 @@ export interface DragInput {
   snap: SnapContext;
   minDurationMs: number;
   allowVertical: boolean;
+  /**
+   * Variable row heights (resource mode): `rowTops[i]` is the top of row i and
+   * `rowTops[rowCount]` the total height. Used with `anchorY` instead of `rowHeight`.
+   */
+  rowTops?: readonly number[];
+  /** With `rowTops`: vertical position of the dragged bar's centre when the drag started. */
+  anchorY?: number;
 }
 
 export interface DragResult {
@@ -43,7 +51,9 @@ export function computeDrag(input: DragInput): DragResult {
   const duration = originEnd - originStart;
 
   let rowIndex = input.originRowIndex;
-  if (input.allowVertical && kind === 'move' && input.rowCount > 0) {
+  if (input.allowVertical && kind === 'move' && input.rowCount > 0 && input.rowTops && input.anchorY !== undefined) {
+    rowIndex = clamp(findRowAt(input.rowTops, input.anchorY + input.deltaY), 0, input.rowCount - 1);
+  } else if (input.allowVertical && kind === 'move' && input.rowCount > 0) {
     const ratio = input.deltaY / input.rowHeight;
     // Symmetric rounding: Math.round(-0.5) is 0 in JS, we want -1.
     const deltaRows = Math.sign(ratio) * Math.round(Math.abs(ratio));

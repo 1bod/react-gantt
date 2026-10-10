@@ -32,6 +32,17 @@ export interface GanttTask<TData = unknown> {
   parentMode?: ParentMode;
   /** Free slot for consumer data, passed back untouched in render props and events. */
   data?: TData;
+  /** Resource mode (`rows` prop): id of the row the task is drawn on. */
+  rowId?: string;
+}
+
+/** A row of the resource mode (a machine, an operator…). Tasks are drawn on it through `task.rowId`. */
+export interface GanttResourceRow<TRowData = unknown> {
+  id: string;
+  /** Content displayed in the sidebar. */
+  label: ReactNode;
+  /** Free slot for consumer data, passed back untouched in render props. */
+  data?: TRowData;
 }
 
 /** Where a task lives in the tree: `parentId` is `null` at the root level. */
@@ -51,6 +62,10 @@ export interface TaskChange {
   /** Present only when the task was moved to another row. */
   position?: TaskPosition;
   previousPosition: TaskPosition;
+  /** Resource mode: present only when the task was moved to another resource row. */
+  rowId?: string;
+  /** Resource mode: the row the task was on before the change. */
+  previousRowId?: string;
 }
 
 export interface DragPreview {
@@ -61,4 +76,6 @@ export interface DragPreview {
   position: TaskPosition;
   /** What the current position snapped to. */
   snappedTo: 'edge' | 'grid' | 'none';
+  /** Resource mode: the row under the pointer. */
+  rowId?: string;
 }

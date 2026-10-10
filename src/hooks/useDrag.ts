@@ -9,6 +9,8 @@ export interface DragSession {
   originStart: number;
   originEnd: number;
   originRowIndex: number;
+  /** Resource mode: centre of the bar's lane, from the top of the body. */
+  anchorY?: number;
   pointerId: number;
   startX: number;
   startY: number;
@@ -22,6 +24,11 @@ export interface DragSession {
 export interface DragState {
   session: DragSession;
   result: DragResult;
+  /** Pointer displacement (scroll included) since the drag started. */
+  deltaX: number;
+  deltaY: number;
+  /** Unsnapped interval under the pointer. */
+  raw: { start: number; end: number };
 }
 
 export interface UseDragParams {
@@ -30,6 +37,8 @@ export interface UseDragParams {
   scale: TimeScale;
   rowCount: number;
   rowHeight: number;
+  /** Variable row heights (resource mode), see `DragInput.rowTops`. */
+  rowTops?: readonly number[];
   snap: SnapMode;
   zone: string;
   snapToTasks: boolean;
@@ -92,7 +101,7 @@ export function useDrag(params: UseDragParams) {
       const scrollDx = scroller ? scroller.scrollLeft - session.startScrollLeft : 0;
       const scrollDy = scroller ? scroller.scrollTop - session.startScrollTop : 0;
       const edgeThresholdMs = p.snapToTasks ? p.snapThresholdPx / p.scale.pxPerMs : 0;
-      const result = computeDrag({
+      const input = {
         kind: session.kind,
         originStart: session.originStart,
         originEnd: session.originEnd,
@@ -101,13 +110,17 @@ export function useDrag(params: UseDragParams) {
         originRowIndex: session.originRowIndex,
         rowCount: p.rowCount,
         rowHeight: p.rowHeight,
+        rowTops: p.rowTops,
+        anchorY: session.anchorY,
         scale: p.scale,
         snap: { snap: p.snap, edges: session.edges, edgeThresholdMs, zone: p.zone },
         minDurationMs: p.minDurationMs,
         allowVertical: p.allowVertical,
-      });
+      };
+      const result = computeDrag(input);
+      const raw = computeDrag({ ...input, snap: { snap: 'none', edges: [], edgeThresholdMs: 0 } });
       resultRef.current = result;
-      setDrag({ session, result });
+      setDrag({ session, result, deltaX: input.deltaPx, deltaY: input.deltaY, raw: { start: raw.start, end: raw.end } });
       p.onPreview(session, result);
 
       // Auto-scroll when the pointer is close to the edges of the scroll container.
@@ -183,7 +196,7 @@ export function useDrag(params: UseDragParams) {
   useEffect(() => () => stopAutoscroll(), [stopAutoscroll]);
 
   const getBarHandlers = useCallback(
-    (taskId: string, rowIndex: number): BarDragHandlers => ({
+    (taskId: string, rowIndex: number, anchorY?: number): BarDragHandlers => ({
       onPointerDown: (event) => {
         const p = paramsRef.current;
         if (!p.enabled || event.button !== 0 || sessionRef.current) return;
@@ -199,6 +212,7 @@ export function useDrag(params: UseDragParams) {
           originStart: interval.start,
           originEnd: interval.end,
           originRowIndex: rowIndex,
+          anchorY,
           pointerId: event.pointerId,
           startX: event.clientX,
           startY: event.clientY,

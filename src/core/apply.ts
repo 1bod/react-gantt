@@ -2,11 +2,13 @@ import type { GanttTask, TaskChange } from '../types';
 
 /**
  * Pure helper for controlled usage: returns a new task tree with the change applied.
- * Handles date updates and vertical moves (reorder, nest, un-nest).
+ * Handles date updates, vertical moves (reorder, nest, un-nest) and, in resource mode,
+ * moves to another resource row (`rowId`).
  */
 export function applyTaskChange<T extends GanttTask>(tasks: readonly T[], change: TaskChange): T[] {
   const start = change.start.toMillis();
   const end = change.end.toMillis();
+  const update = (task: T): T => (change.rowId === undefined ? { ...task, start, end } : { ...task, start, end, rowId: change.rowId });
 
   let moved: T | null = null;
   const withoutMoved: T[] = [];
@@ -14,7 +16,7 @@ export function applyTaskChange<T extends GanttTask>(tasks: readonly T[], change
 
   for (const task of tasks) {
     if (task.id === change.id) {
-      moved = { ...task, start, end };
+      moved = update(task);
       if (!target) withoutMoved.push(moved);
       continue;
     }
@@ -27,7 +29,7 @@ export function applyTaskChange<T extends GanttTask>(tasks: readonly T[], change
     const nextChildren: T[] = [];
     for (const child of children) {
       if (child.id === change.id) {
-        moved = { ...child, start, end };
+        moved = update(child);
         touched = true;
         if (!target) nextChildren.push(moved);
         continue;

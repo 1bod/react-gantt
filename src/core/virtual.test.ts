@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getVisibleRange } from './virtual';
+import { buildOffsets, findRowAt, getVisibleRange, getVisibleRangeByOffsets } from './virtual';
 
 describe('getVisibleRange', () => {
   it('renders the first rows at scroll 0 with overscan after', () => {
@@ -28,5 +28,40 @@ describe('getVisibleRange', () => {
 
   it('tolerates negative scroll (overscroll bounce)', () => {
     expect(getVisibleRange(-50, 360, 36, 100, 2).start).toBe(0);
+  });
+});
+
+describe('variable row heights', () => {
+  const offsets = buildOffsets([28, 52, 28, 100, 28]);
+
+  it('buildOffsets accumulates the heights', () => {
+    expect(offsets).toEqual([0, 28, 80, 108, 208, 236]);
+    expect(buildOffsets([])).toEqual([0]);
+  });
+
+  it('findRowAt finds the row containing a position, clamped', () => {
+    expect(findRowAt(offsets, 0)).toBe(0);
+    expect(findRowAt(offsets, 27.9)).toBe(0);
+    expect(findRowAt(offsets, 28)).toBe(1);
+    expect(findRowAt(offsets, 150)).toBe(3);
+    expect(findRowAt(offsets, -10)).toBe(0);
+    expect(findRowAt(offsets, 10_000)).toBe(4);
+    expect(findRowAt([0], 10)).toBe(-1);
+  });
+
+  it('getVisibleRangeByOffsets windows around the viewport with overscan', () => {
+    expect(getVisibleRangeByOffsets(offsets, 0, 50, 0)).toEqual({ start: 0, end: 2 });
+    expect(getVisibleRangeByOffsets(offsets, 100, 20, 0)).toEqual({ start: 2, end: 4 });
+    expect(getVisibleRangeByOffsets(offsets, 100, 20, 1)).toEqual({ start: 1, end: 5 });
+    expect(getVisibleRangeByOffsets(offsets, -50, 0, 0)).toEqual({ start: 0, end: 1 });
+    expect(getVisibleRangeByOffsets([0], 0, 100)).toEqual({ start: 0, end: 0 });
+  });
+
+  it('scales to many rows', () => {
+    const many = buildOffsets(Array.from({ length: 10_000 }, (_, i) => (i % 3 === 0 ? 52 : 28)));
+    const range = getVisibleRangeByOffsets(many, many[5000]!, 400, 2);
+    expect(range.start).toBe(4998);
+    expect(range.end).toBeGreaterThan(5010);
+    expect(range.end).toBeLessThan(5030);
   });
 });

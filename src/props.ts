@@ -2,7 +2,7 @@ import type { DateTime } from 'luxon';
 import type { CSSProperties, ReactNode } from 'react';
 import type { HeaderTick } from './core/header';
 import type { GanttRow } from './core/rows';
-import type { DateInput, DragPreview, GanttTask, ParentMode, SnapMode, TaskChange, ZoomLevel } from './types';
+import type { DateInput, DragPreview, GanttResourceRow, GanttTask, ParentMode, SnapMode, TaskChange, ZoomLevel } from './types';
 
 export type GanttSlot =
   | 'root'
@@ -50,10 +50,15 @@ export interface GanttLabels {
   bar: (task: GanttTask, start: DateTime, end: DateTime) => string;
 }
 
-export interface BarRenderContext<TData = unknown> {
+export interface BarRenderContext<TData = unknown, TRowData = unknown> {
   task: GanttTask<TData>;
   parent: GanttTask<TData> | null;
+  /** Task mode row. In resource mode, a leaf (or child) row describing the task itself. */
   row: GanttRow;
+  /** Resource mode: the row the bar is drawn on. `null` in task mode. */
+  resource: GanttResourceRow<TRowData> | null;
+  /** Resource mode: lane of the bar inside its row (0 in task mode). */
+  lane: number;
   start: DateTime;
   end: DateTime;
   isDragging: boolean;
@@ -69,14 +74,36 @@ export interface LabelRenderContext<TData = unknown> {
   toggle: () => void;
 }
 
+export interface RowLabelRenderContext<TData = unknown, TRowData = unknown> {
+  row: GanttResourceRow<TRowData>;
+  index: number;
+  /** Tasks drawn on the row, ordered by start then id. */
+  tasks: GanttTask<TData>[];
+  laneCount: number;
+}
+
 export interface DraftToolbarRenderContext {
   changes: TaskChange[];
   commit: () => void;
   discard: () => void;
 }
 
-export interface GanttProps<TData = unknown> {
+export interface GanttProps<TData = unknown, TRowData = unknown> {
   tasks: GanttTask<TData>[];
+
+  /**
+   * Resource mode: one row per resource, tasks are drawn on the row given by `task.rowId`
+   * (several bars per row, overlapping bars packed into lanes). Without `rows`, the
+   * component is in task mode (one row per task).
+   */
+  rows?: GanttResourceRow<TRowData>[];
+  /** Resource mode: height added to a row by each extra lane. Defaults to `rowHeight`. */
+  laneHeight?: number;
+  /**
+   * Vertical gap in pixels between a bar and the edges of its row (or lane).
+   * Defaults to 15% of `rowHeight` (rounded to whole pixels in resource mode).
+   */
+  barInset?: number;
 
   /** Header granularity. Default `day`. */
   zoom?: ZoomLevel;
@@ -147,8 +174,10 @@ export interface GanttProps<TData = unknown> {
   /** Override the current time (testing, "as of" views). */
   now?: DateInput;
 
-  renderBar?: (ctx: BarRenderContext<TData>) => ReactNode;
+  renderBar?: (ctx: BarRenderContext<TData, TRowData>) => ReactNode;
   renderLabel?: (ctx: LabelRenderContext<TData>) => ReactNode;
+  /** Resource mode: content of a row's sidebar cell. Defaults to `row.label`. */
+  renderRowLabel?: (ctx: RowLabelRenderContext<TData, TRowData>) => ReactNode;
   renderHeaderCell?: (tick: HeaderTick, tier: 'top' | 'bottom') => ReactNode;
   barClassName?: (task: GanttTask<TData>) => string | undefined;
   barStyle?: (task: GanttTask<TData>) => CSSProperties | undefined;
@@ -163,6 +192,7 @@ export interface GanttHandle {
   commitDraft: () => void;
   discardDraft: () => void;
   getPendingChanges: () => TaskChange[];
+  /** Scrolls to the row of the task (its resource row in resource mode) and to the start of its bar. */
   scrollToTask: (id: string) => void;
   scrollToTime: (date: DateInput) => void;
   /** The scrollable element, for advanced integrations. */
