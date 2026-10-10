@@ -39,6 +39,7 @@
   --gantt-selected-color: #2563eb;
   --gantt-highlight-color: #93c5fd;
   --gantt-link-color: var(--gantt-muted);
+  --gantt-invalid-color: #dc2626;
   --gantt-font: ui-sans-serif, system-ui, sans-serif;
   font-family: var(--gantt-font);
   color: var(--gantt-text);
@@ -60,6 +61,10 @@
   box-shadow: var(--gantt-drag-shadow);
   /* The dragged bar follows the pointer 1:1, even if the host adds transitions to bars. */
   transition: none;
+}
+
+.gantt-bar[data-invalid='true'] {
+  cursor: not-allowed;
 }
 
 .gantt-ghost {
@@ -109,5 +114,20 @@
   .gantt-bar[data-selected='true'] {
     outline: 2px solid var(--gantt-selected-color);
     outline-offset: 1px;
+  }
+
+  .gantt-bar[data-invalid='true'] {
+    outline: 2px solid var(--gantt-invalid-color);
+    outline-offset: 1px;
+  }
+
+  /* Snapped target of a pointer-following drag. */
+  .gantt-drop-indicator {
+    outline: 2px dashed var(--gantt-drop-color);
+    outline-offset: -1px;
+  }
+
+  .gantt-drop-indicator[data-invalid='true'] {
+    outline-color: var(--gantt-invalid-color);
   }
 }

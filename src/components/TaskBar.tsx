@@ -18,6 +18,8 @@ export interface TaskBarProps {
   isChild: boolean;
   isSelected?: boolean;
   isHighlighted?: boolean;
+  /** Dragged over a target rejected by `canDrop`. */
+  isInvalid?: boolean;
   interactive: boolean;
   showHandles: boolean;
   ariaLabel: string;
@@ -53,6 +55,7 @@ export function TaskBar(props: TaskBarProps) {
       data-pending={props.isPending || undefined}
       data-selected={props.isSelected || undefined}
       data-highlighted={props.isHighlighted || undefined}
+      data-invalid={props.isInvalid || undefined}
       data-kind={props.isGroup ? 'group' : props.isChild ? 'child' : 'leaf'}
       role="button"
       tabIndex={props.interactive ? 0 : -1}
@@ -68,6 +71,7 @@ export function TaskBar(props: TaskBarProps) {
         props.isDragging && c.barDragging,
         props.isSelected && c.barSelected,
         props.isHighlighted && c.barHighlighted,
+        props.isInvalid && c.barInvalid,
         props.className,
       )}
       style={style}

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GanttRow } from '../core/rows';
 import { baseProps, DAY_START, dragBy, getBar, getResourceRow, H, makeResourceRows, makeResourceTasks, makeTasks, release, resourceProps } from '../test-utils';
-import type { ClosedRange, GanttLink, GanttResourceRow } from '../types';
+import type { ClosedRange, GanttLink, GanttResourceRow, TaskChange } from '../types';
 import { Gantt } from './Gantt';
 
 afterEach(() => {
@@ -368,5 +368,121 @@ describe('now line and theming', () => {
       .map((el) => el.className)
       .join(' ');
     expect(classes).not.toMatch(/-(red|blue|black|white)\b|text-white|bg-black/);
+  });
+});
+
+describe('drag feedback', () => {
+  const noM3 = (change: TaskChange) => change.rowId !== 'm3';
+
+  it('canDrop marks the bar invalid over a rejected target and cancels the drop', () => {
+    const onTaskChange = vi.fn();
+    const onDragPreview = vi.fn();
+    const canDrop = vi.fn(noM3);
+    render(
+      <Gantt
+        {...resourceProps}
+        rows={makeResourceRows()}
+        tasks={makeResourceTasks()}
+        onTaskChange={onTaskChange}
+        onDragPreview={onDragPreview}
+        canDrop={canDrop}
+        classNames={{ barInvalid: 'nope' }}
+      />,
+    );
+    const bar = getBar('a');
+    dragBy(bar, 0, 80, { hold: true }); // m3
+    expect(bar).toHaveAttribute('data-invalid', 'true');
+    expect(bar).toHaveClass('nope');
+    expect(onDragPreview).toHaveBeenLastCalledWith(expect.objectContaining({ rowId: 'm3', valid: false }));
+    expect(canDrop).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'a', rowId: 'm3', previousRowId: 'm1' }));
+    release(bar, 100, 180);
+    expect(onTaskChange).not.toHaveBeenCalled();
+    expect(bar).not.toHaveAttribute('data-invalid');
+
+    dragBy(bar, 0, 50, { hold: true }); // m2
+    expect(bar).not.toHaveAttribute('data-invalid');
+    expect(onDragPreview).toHaveBeenLastCalledWith(expect.objectContaining({ rowId: 'm2', valid: true }));
+    release(bar, 100, 150);
+    expect(onTaskChange).toHaveBeenCalledWith(expect.objectContaining({ rowId: 'm2' }));
+  });
+
+  it('a no-op target is always valid, and the preview has no valid flag without canDrop', () => {
+    const onDragPreview = vi.fn();
+    const canDrop = vi.fn(() => false);
+    const { rerender } = render(<Gantt {...resourceProps} rows={makeResourceRows()} tasks={makeResourceTasks()} canDrop={canDrop} />);
+    dragBy(getBar('a'), 0, 5, { hold: true });
+    expect(getBar('a')).not.toHaveAttribute('data-invalid');
+    expect(canDrop).not.toHaveBeenCalled();
+    release(getBar('a'));
+    rerender(<Gantt {...resourceProps} rows={makeResourceRows()} tasks={makeResourceTasks()} onDragPreview={onDragPreview} />);
+    dragBy(getBar('a'), 30, 0, { hold: true });
+    expect(onDragPreview.mock.lastCall![0]).not.toHaveProperty('valid');
+    release(getBar('a'), 130, 100);
+  });
+
+  it('canDrop also filters keyboard moves', () => {
+    const onTaskChange = vi.fn();
+    render(<Gantt {...resourceProps} rows={makeResourceRows()} tasks={makeResourceTasks()} onTaskChange={onTaskChange} canDrop={noM3} />);
+    fireEvent.keyDown(getBar('c'), { key: 'ArrowDown' }); // m2 -> m3: rejected
+    expect(onTaskChange).not.toHaveBeenCalled();
+    fireEvent.keyDown(getBar('c'), { key: 'ArrowRight' });
+    expect(onTaskChange).toHaveBeenCalledTimes(1);
+    render(<Gantt {...baseProps} tasks={makeTasks()} onTaskChange={onTaskChange} canDrop={() => false} />);
+    fireEvent.keyDown(document.querySelectorAll<HTMLElement>('[data-task-id="b"][data-gantt="bar"]')[0]!, { key: 'ArrowUp' });
+    expect(onTaskChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('dragFollowsPointer: the bar follows the pointer, the indicator shows the snapped target', () => {
+    const onTaskChange = vi.fn();
+    render(
+      <Gantt
+        {...resourceProps}
+        snap="hour"
+        dragFollowsPointer
+        rows={makeResourceRows()}
+        tasks={makeResourceTasks()}
+        onTaskChange={onTaskChange}
+        canDrop={noM3}
+        classNames={{ dropIndicator: 'my-indicator' }}
+      />,
+    );
+    const bar = getBar('a');
+    dragBy(bar, 40, 50, { hold: true }); // 10:40 raw, snapped to 11:00, onto m2
+    expect(bar).toHaveStyle({ left: '640px', width: '120px', transform: 'translateY(50px)' });
+    const indicator = document.querySelector<HTMLElement>('[data-gantt="drop-indicator"]')!;
+    expect(indicator).toHaveClass('gantt-drop-indicator', 'my-indicator');
+    expect(indicator).toHaveStyle({ left: `${200 + 660}px`, width: '120px', top: `${48 + 52 + 4}px`, height: '20px' });
+    expect(indicator).not.toHaveAttribute('data-invalid');
+    expect(document.querySelector('[data-gantt="ghost"]')).toHaveStyle({ left: '600px', top: '4px' });
+
+    fireEvent.pointerMove(bar, { pointerId: 1, clientX: 140, clientY: 180 }); // m3: rejected
+    expect(indicator).toHaveAttribute('data-invalid', 'true');
+    expect(bar).toHaveAttribute('data-invalid', 'true');
+    release(bar, 140, 150); // back over m2 on release
+    expect(document.querySelector('[data-gantt="drop-indicator"]')).toBeNull();
+    expect(onTaskChange).toHaveBeenCalledWith(expect.objectContaining({ rowId: 'm2' }));
+  });
+
+  it('dragFollowsPointer: the indicator stays on the bar lane within its row, resizes follow the pointer', () => {
+    render(<Gantt {...resourceProps} snap="hour" dragFollowsPointer rows={makeResourceRows()} tasks={makeResourceTasks()} />);
+    const bar = getBar('b'); // lane 1 of m1
+    dragBy(bar, 20, 0, { hold: true });
+    expect(document.querySelector('[data-gantt="drop-indicator"]')).toHaveStyle({ top: `${48 + 28}px`, left: `${200 + 11 * 60}px` });
+    release(bar, 120, 100);
+    const end = getBar('c').querySelector('[data-handle="end"]')!;
+    dragBy(getBar('c'), 20, 30, { target: end, hold: true });
+    expect(getBar('c')).toHaveStyle({ width: '80px' });
+    expect(getBar('c').style.transform).toBe(''); // a resize never moves vertically
+    expect(document.querySelector('[data-gantt="drop-indicator"]')).toHaveStyle({ width: '60px' });
+    release(getBar('c'), 120, 130);
+  });
+
+  it('task mode with dragFollowsPointer: percent geometry and vertical moves', () => {
+    render(<Gantt {...baseProps} dragFollowsPointer tasks={makeTasks()} />);
+    dragBy(getBar('a'), 10, 40, { hold: true });
+    expect(getBar('a')).toHaveStyle({ transform: 'translateY(40px)' });
+    // Rows of 36px: the target is row 1 (b), the indicator 15% below its top.
+    expect(document.querySelector('[data-gantt="drop-indicator"]')).toHaveStyle({ top: `${48 + 36 + 5.4}px`, height: '25.2px' });
+    release(getBar('a'), 110, 140);
   });
 });

@@ -115,6 +115,8 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
     selectedIds,
     onSelectionChange,
     highlightedIds,
+    canDrop,
+    dragFollowsPointer = false,
     links,
     showLinks = 'selected',
     draft = false,
@@ -315,12 +317,27 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
     [layout, effectiveTasks, rows, buildChange],
   );
 
+  /** Whether `canDrop` accepts the drop target of a drag (cached per drag result). */
+  const validityRef = useRef<{ result: DragResult; canDrop: typeof canDrop; valid: boolean } | null>(null);
+  const isDropAllowed = useCallback(
+    (session: DragSession, result: DragResult): boolean => {
+      if (!canDrop) return true;
+      const cached = validityRef.current;
+      if (cached && cached.result === result && cached.canDrop === canDrop) return cached.valid;
+      const change = changeForDrag(session, result);
+      const valid = !change || canDrop(change);
+      validityRef.current = { result, canDrop, valid };
+      return valid;
+    },
+    [canDrop, changeForDrag],
+  );
+
   const handleDrop = useCallback(
     (session: DragSession, result: DragResult) => {
       const change = changeForDrag(session, result);
-      if (change) emitChange(change);
+      if (change && (!canDrop || canDrop(change))) emitChange(change);
     },
-    [changeForDrag, emitChange],
+    [changeForDrag, canDrop, emitChange],
   );
 
   const handleBarClick = useCallback(
@@ -355,9 +372,10 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
       };
       const rowId = layout?.rows[result.rowIndex]?.row.id;
       if (rowId !== undefined) preview.rowId = rowId;
+      if (canDrop) preview.valid = isDropAllowed(session, result);
       onDragPreview(preview);
     },
-    [onDragPreview, effectiveTasks, rows, zone, layout],
+    [onDragPreview, effectiveTasks, rows, zone, layout, canDrop, isDropAllowed],
   );
 
   const { drag, getBarHandlers } = useDrag({
@@ -403,7 +421,7 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
             zone,
           });
           const change = buildChange(task.id, next.start, next.end, 'keyboard', undefined);
-          if (change) emitChange(change);
+          if (change && (!canDrop || canDrop(change))) emitChange(change);
           return;
         }
         case 'ArrowUp':
@@ -414,13 +432,13 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
           if (targetRow === rowIndex) return;
           if (layout) {
             const change = buildChange(task.id, interval.start, interval.end, 'keyboard', undefined, layout.rows[targetRow]!.row.id);
-            if (change) emitChange(change);
+            if (change && (!canDrop || canDrop(change))) emitChange(change);
             return;
           }
           const position = getDropPosition(rows, targetRow, task);
           if (!position) return;
           const change = buildChange(task.id, interval.start, interval.end, 'keyboard', position);
-          if (change) emitChange(change);
+          if (change && (!canDrop || canDrop(change))) emitChange(change);
           return;
         }
         case 'Enter':
@@ -438,7 +456,7 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
           return;
       }
     },
-    [readOnly, intervals, allowResize, allowVerticalMove, snap, minDurationMs, zone, rows, rowCount, layout, buildChange, emitChange, toggleExpanded, selectable, dispatchSelection],
+    [readOnly, intervals, allowResize, allowVerticalMove, snap, minDurationMs, zone, rows, rowCount, layout, buildChange, canDrop, emitChange, toggleExpanded, selectable, dispatchSelection],
   );
 
   // ----- Selection --------------------------------------------------------
@@ -533,6 +551,11 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
 
   const dragTaskId = drag?.session.taskId ?? null;
   const dropRowIndex = drag && drag.result.rowIndex !== drag.session.originRowIndex ? drag.result.rowIndex : -1;
+  const dragInvalid = drag !== null && !isDropAllowed(drag.session, drag.result);
+  const followPointer = dragFollowsPointer && drag !== null;
+  /** Numeric top / height of a bar inside its row (for the overlays). */
+  const barTopPx = (lane: number) => barTop(lane) ?? rowHeight * 0.15;
+  const barHeightOverlay = pxBars ? barHeightPx : rowHeight * 0.7;
 
   /** Vertical offset of the dragged bar: onto lane 0 of the target row in resource mode. */
   const dragTranslateY = (rowIndex: number, lane: number): number => {
@@ -625,8 +648,10 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
     const isDragging = dragTaskId === bar.task.id && drag !== null && drag.session.originRowIndex === rowIndex;
     const start = isDragging ? drag.result.start : interval.start;
     const end = isDragging ? drag.result.end : interval.end;
-    const left = msToPx(scale, start);
-    const width = Math.max(2, msToPx(scale, end) - left);
+    // Pointer-following drag: the bar sits under the pointer, the drop indicator shows the snapped target.
+    const followed = isDragging && followPointer ? drag.raw : null;
+    const left = msToPx(scale, followed ? followed.start : start);
+    const width = Math.max(2, msToPx(scale, followed ? followed.end : end) - left);
     if (!isDragging && horizontalWindow && (left + width < horizontalWindow.left || left > horizontalWindow.right)) return null;
     const isPending = draft && pending.has(bar.task.id);
     const pendingChange = isPending && !layout ? pending.get(bar.task.id) : undefined;
@@ -646,14 +671,15 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
       isHighlighted: highlighted.has(bar.task.id),
     };
     const top = barTop(bar.lane);
-    const translateY = isDragging ? dragTranslateY(rowIndex, bar.lane) : 0;
+    const translateY = !isDragging
+      ? 0
+      : followed
+        ? drag.session.kind === 'move' && allowVerticalMove
+          ? drag.deltaY
+          : 0
+        : dragTranslateY(rowIndex, bar.lane);
     if (shownLinks.length && !barRects.has(bar.task.id)) {
-      barRects.set(bar.task.id, {
-        x: left,
-        y: rowTop(rowIndex) + (top ?? rowHeight * 0.15) + translateY,
-        width,
-        height: top === undefined ? rowHeight * 0.7 : barHeightPx,
-      });
+      barRects.set(bar.task.id, { x: left, y: rowTop(rowIndex) + barTopPx(bar.lane) + translateY, width, height: barHeightOverlay });
     }
     return (
       <span key={bar.task.id} className="contents">
@@ -672,6 +698,7 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
           isChild={bar.parent !== null}
           isSelected={ctx.isSelected}
           isHighlighted={ctx.isHighlighted}
+          isInvalid={isDragging && dragInvalid}
           interactive={!readOnly}
           showHandles={!readOnly && allowResize}
           ariaLabel={labels.bar(bar.task, ctx.start, ctx.end)}
@@ -885,6 +912,23 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
               />
             )}
           </div>
+          {followPointer && drag && (
+            <div
+              data-gantt="drop-indicator"
+              data-invalid={dragInvalid || undefined}
+              aria-hidden
+              className={cx('gantt-drop-indicator pointer-events-none absolute z-[3] rounded-md', c.dropIndicator)}
+              style={{
+                left: sidebarWidth + msToPx(scale, drag.result.start),
+                width: Math.max(2, msToPx(scale, drag.result.end) - msToPx(scale, drag.result.start)),
+                top:
+                  headerHeight +
+                  rowTop(drag.result.rowIndex) +
+                  barTopPx(drag.result.rowIndex === drag.session.originRowIndex ? (layout?.barsById.get(drag.session.taskId)?.lane ?? 0) : 0),
+                height: barHeightOverlay,
+              }}
+            />
+          )}
           <LinkLayer
             links={shownLinks}
             rects={barRects}

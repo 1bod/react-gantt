@@ -36,6 +36,8 @@ export type GanttSlot =
   | 'barDragging'
   | 'barSelected'
   | 'barHighlighted'
+  | 'barInvalid'
+  | 'dropIndicator'
   | 'barLabel'
   | 'handle'
   | 'ghost'
@@ -157,6 +159,17 @@ export interface GanttProps<TData = unknown, TRowData = unknown> {
   onTaskChange?: (change: TaskChange) => void | boolean;
   /** Fires continuously during a drag, then once with `null` when the drag ends. */
   onDragPreview?: (preview: DragPreview | null) => void;
+  /**
+   * Rejects a drop target while dragging (and keyboard moves): return `false` and the bar
+   * gets `data-invalid` while over that target, and dropping there cancels the change.
+   */
+  canDrop?: (change: TaskChange) => boolean;
+  /**
+   * The dragged bar follows the pointer 1:1 (no snapping, free vertical move) and a
+   * `[data-gantt="drop-indicator"]` shows the snapped target. Default `false`: the bar
+   * itself jumps to the snapped target (1.0).
+   */
+  dragFollowsPointer?: boolean;
   onTaskClick?: (task: GanttTask<TData>, event: React.PointerEvent<HTMLElement>) => void;
 
   /**

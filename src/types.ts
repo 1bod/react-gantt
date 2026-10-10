@@ -98,4 +98,6 @@ export interface DragPreview {
   snappedTo: 'edge' | 'grid' | 'none';
   /** Resource mode: the row under the pointer. */
   rowId?: string;
+  /** Only with `canDrop`: whether dropping here is allowed. */
+  valid?: boolean;
 }
