@@ -2,8 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { GanttRow } from '../core/rows';
-import { baseProps, DAY_START, dragBy, getBar, getResourceRow, H, makeResourceRows, makeResourceTasks, makeTasks, resourceProps } from '../test-utils';
-import type { ClosedRange, GanttResourceRow } from '../types';
+import { baseProps, DAY_START, dragBy, getBar, getResourceRow, H, makeResourceRows, makeResourceTasks, makeTasks, release, resourceProps } from '../test-utils';
+import type { ClosedRange, GanttLink, GanttResourceRow } from '../types';
 import { Gantt } from './Gantt';
 
 afterEach(() => {
@@ -260,5 +260,74 @@ describe('selection', () => {
     );
     expect(getBar('a')).toHaveClass('is-selected');
     expect(getBar('b')).toHaveClass('is-highlighted');
+  });
+});
+
+describe('links', () => {
+  const links: GanttLink[] = [
+    { id: 'ac', from: 'a', to: 'c' },
+    { id: 'cd', from: 'c', to: 'd', type: 'start_start' },
+    { id: 'bx', from: 'b', to: 'missing' },
+  ];
+  const drawnIds = () => Array.from(document.querySelectorAll<SVGGElement>('[data-gantt="link"]')).map((g) => g.dataset.linkId);
+  const pathOf = (id: string) => document.querySelector(`[data-link-id="${id}"] path`)!.getAttribute('d');
+
+  it('draws only the links of the selected bars by default', () => {
+    const { rerender } = render(<Gantt {...resourceProps} rows={makeResourceRows()} tasks={makeResourceTasks()} links={links} selectedIds={[]} />);
+    expect(document.querySelector('[data-gantt="links"]')).toBeNull();
+    rerender(<Gantt {...resourceProps} rows={makeResourceRows()} tasks={makeResourceTasks()} links={links} selectedIds={['a']} />);
+    expect(drawnIds()).toEqual(['ac']);
+    rerender(<Gantt {...resourceProps} rows={makeResourceRows()} tasks={makeResourceTasks()} links={links} selectedIds={['c']} />);
+    expect(drawnIds()).toEqual(['ac', 'cd']);
+  });
+
+  it('draws elbows between the bars, in body coordinates', () => {
+    render(<Gantt {...resourceProps} rows={makeResourceRows()} tasks={makeResourceTasks()} links={links} showLinks="all" classNames={{ link: 'my-link' }} />);
+    const svg = document.querySelector<SVGSVGElement>('[data-gantt="links"]')!;
+    expect(svg).toHaveStyle({ left: '200px', top: '48px', width: `${24 * 60}px`, height: '108px' });
+    // A: 10:00-12:00 on m1 lane 0 (y 4-24). C: 14:00-15:00 on m2 (y 56-76).
+    expect(pathOf('ac')).toBe('M720.5 14.5 L728.5 14.5 L728.5 66.5 L840.5 66.5');
+    // D: 09:00-10:00 on m3 (y 84-104), start to start.
+    expect(pathOf('cd')).toBe('M840.5 66.5 L532.5 66.5 L532.5 94.5 L540.5 94.5');
+    // A link to a bar that is not rendered is skipped.
+    expect(drawnIds()).toEqual(['ac', 'cd']);
+    expect(document.querySelector('[data-link-id="cd"]')).toHaveAttribute('data-type', 'start_start');
+    expect(document.querySelector('[data-link-id="ac"]')).toHaveClass('gantt-link', 'my-link');
+  });
+
+  it('follows the dragged bar', () => {
+    render(<Gantt {...resourceProps} rows={makeResourceRows()} tasks={makeResourceTasks()} links={links} showLinks="all" />);
+    const bar = getBar('a');
+    dragBy(bar, 60, 50, { hold: true }); // onto m2, one hour later
+    expect(pathOf('ac')).toBe('M780.5 66.5 L788.5 66.5 L840.5 66.5'); // same row now: straight
+    release(bar, 160, 150);
+  });
+
+  it('none hides every link, and task mode bars work too', () => {
+    const { rerender } = render(<Gantt {...baseProps} tasks={makeTasks()} links={[{ id: 'ab', from: 'a', to: 'b' }]} showLinks="none" />);
+    expect(document.querySelector('[data-gantt="links"]')).toBeNull();
+    rerender(<Gantt {...baseProps} tasks={makeTasks()} links={[{ id: 'ab', from: 'a', to: 'b' }]} showLinks="all" />);
+    // Rows of 36px, bars at 15% / 70%: centres at 18 and 54.
+    expect(pathOf('ab')).toBe('M720.5 18.5 L728.5 18.5 L728.5 54.5 L840.5 54.5');
+  });
+
+  it('skips links whose rows are virtualized away', () => {
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(48 + 100);
+    const rows = Array.from({ length: 100 }, (_, i) => ({ id: `r${i}`, label: `R${i}` }));
+    const tasks = rows.map((row, i) => ({ id: `t${i}`, label: `T${i}`, start: DAY_START + H, end: DAY_START + 2 * H, rowId: row.id }));
+    render(
+      <Gantt
+        {...resourceProps}
+        rows={rows}
+        tasks={tasks}
+        overscan={1}
+        showLinks="all"
+        links={[
+          { id: 'near', from: 't0', to: 't1' },
+          { id: 'far', from: 't0', to: 't90' },
+        ]}
+      />,
+    );
+    expect(drawnIds()).toEqual(['near']);
   });
 });

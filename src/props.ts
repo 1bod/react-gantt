@@ -1,8 +1,9 @@
 import type { DateTime } from 'luxon';
 import type { CSSProperties, ReactNode } from 'react';
 import type { HeaderTick, HeaderTierSpecs } from './core/header';
+import type { ShowLinks } from './core/links';
 import type { GanttRow } from './core/rows';
-import type { ClosedRange, DateInput, DragPreview, GanttResourceRow, GanttTask, ParentMode, SnapMode, TaskChange, ZoomLevel } from './types';
+import type { ClosedRange, DateInput, DragPreview, GanttLink, GanttResourceRow, GanttTask, ParentMode, SnapMode, TaskChange, ZoomLevel } from './types';
 
 export type GanttSlot =
   | 'root'
@@ -37,6 +38,7 @@ export type GanttSlot =
   | 'barLabel'
   | 'handle'
   | 'ghost'
+  | 'link'
   | 'draftToolbar'
   | 'draftButton'
   | 'draftButtonPrimary';
@@ -165,6 +167,11 @@ export interface GanttProps<TData = unknown, TRowData = unknown> {
   onSelectionChange?: (ids: string[]) => void;
   /** Bars to emphasise (e.g. the other operations of the selected order): `data-highlighted`. */
   highlightedIds?: string[];
+
+  /** Dependencies, drawn as orthogonal elbows between the rendered bars (see `showLinks`). */
+  links?: GanttLink[];
+  /** Which links are drawn: those touching a selected bar (default), all of them, or none. */
+  showLinks?: ShowLinks;
 
   /**
    * Draft mode: changes are collected instead of being emitted through `onTaskChange`,

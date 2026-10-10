@@ -29,6 +29,7 @@
   --gantt-tick-height: 6px;
   --gantt-selected-color: #2563eb;
   --gantt-highlight-color: #93c5fd;
+  --gantt-link-color: var(--gantt-muted);
   --gantt-font: ui-sans-serif, system-ui, sans-serif;
   font-family: var(--gantt-font);
   color: var(--gantt-text);
@@ -78,6 +79,10 @@
 
   .gantt-closed[data-narrow='true'] {
     background-image: none;
+  }
+
+  .gantt-link {
+    color: var(--gantt-link-color);
   }
 
   /* Selection is instant: no transition. */

@@ -15,6 +15,8 @@ export type {
   GanttTask,
   GanttResourceRow,
   ClosedRange,
+  GanttLink,
+  LinkType,
   TaskChange,
   TaskPosition,
   DragPreview,
@@ -34,6 +36,10 @@ export { packLanes } from './core/lanes';
 export type { LaneItem, LaneLayout } from './core/lanes';
 export { buildResourceLayout } from './core/resources';
 export { clipRanges, toIntervals } from './core/closed';
+export { linkPath, selectLinks } from './core/links';
+export type { BarRect, LinkGeometry, ShowLinks } from './core/links';
+export { nextSelection } from './core/selection';
+export type { SelectionAction } from './core/selection';
 export type { Interval } from './core/closed';
 export type { ResourceLayout, ResourceRowLayout, ResourceBar } from './core/resources';
 export type { GanttRow, BarItem } from './core/rows';

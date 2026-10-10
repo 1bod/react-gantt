@@ -51,6 +51,20 @@ export interface ClosedRange {
   end: DateInput;
 }
 
+/** Dependency type: which end of `from` constrains which end of `to`. */
+export type LinkType = 'finish_start' | 'start_start' | 'finish_finish';
+
+/** A dependency between two tasks, drawn as an elbow between their bars. */
+export interface GanttLink {
+  id: string;
+  /** Predecessor task id. */
+  from: string;
+  /** Successor task id. */
+  to: string;
+  /** Default `finish_start`. */
+  type?: LinkType;
+}
+
 /** Where a task lives in the tree: `parentId` is `null` at the root level. */
 export interface TaskPosition {
   parentId: string | null;

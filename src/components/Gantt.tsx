@@ -13,6 +13,7 @@ import {
 } from 'react';
 import { applyTaskChanges } from '../core/apply';
 import { clipRanges, toIntervals, type Interval as ClosedInterval } from '../core/closed';
+import { selectLinks, type BarRect } from '../core/links';
 import { computeKeyboardStep } from '../core/drag';
 import { buildHeaderTicks } from '../core/header';
 import { buildResourceLayout, type ResourceBar, type ResourceRowLayout } from '../core/resources';
@@ -28,6 +29,7 @@ import { useSelection } from '../hooks/useSelection';
 import type { GanttHandle, GanttLabels, GanttProps } from '../props';
 import type { ChangeReason, DragPreview, GanttResourceRow, GanttTask, TaskChange, TaskPosition, ZoomLevel } from '../types';
 import { DraftToolbar } from './DraftToolbar';
+import { LinkLayer } from './LinkLayer';
 import { TaskBar } from './TaskBar';
 import { TimelineHeader, visibleTicks } from './TimelineHeader';
 
@@ -113,6 +115,8 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
     selectedIds,
     onSelectionChange,
     highlightedIds,
+    links,
+    showLinks = 'selected',
     draft = false,
     onDraftChange,
     onDraftCommit,
@@ -609,6 +613,10 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
     );
   };
 
+  // Boxes of the bars rendered below, for the link overlay.
+  const shownLinks = links && links.length ? selectLinks(links, showLinks, selected) : [];
+  const barRects = new Map<string, BarRect>();
+
   const renderBarItem = (bar: RowBar, rowIndex: number, taskRow: GanttRow, resource: GanttResourceRow | null) => {
     const interval = intervals.get(bar.task.id);
     if (!interval) return null;
@@ -636,6 +644,15 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
       isHighlighted: highlighted.has(bar.task.id),
     };
     const top = barTop(bar.lane);
+    const translateY = isDragging ? dragTranslateY(rowIndex, bar.lane) : 0;
+    if (shownLinks.length && !barRects.has(bar.task.id)) {
+      barRects.set(bar.task.id, {
+        x: left,
+        y: rowTop(rowIndex) + (top ?? rowHeight * 0.15) + translateY,
+        width,
+        height: top === undefined ? rowHeight * 0.7 : barHeightPx,
+      });
+    }
     return (
       <span key={bar.task.id} className="contents">
         {isDragging && renderGhost('drag-ghost', drag.session.originStart, drag.session.originEnd, bar.lane)}
@@ -646,7 +663,7 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
           width={width}
           top={top}
           height={top === undefined ? undefined : barHeightPx}
-          translateY={isDragging ? dragTranslateY(rowIndex, bar.lane) : 0}
+          translateY={translateY}
           isDragging={isDragging}
           isPending={isPending}
           isGroup={barIsGroup}
@@ -865,6 +882,15 @@ function GanttInner<TData, TRowData>(props: GanttProps<TData, TRowData>, ref: Re
               />
             )}
           </div>
+          <LinkLayer
+            links={shownLinks}
+            rects={barRects}
+            left={sidebarWidth}
+            top={headerHeight}
+            width={timelineWidth}
+            height={bodyHeight}
+            classNames={c}
+          />
           {visibleRows}
         </div>
       </div>
