@@ -19,7 +19,7 @@ applications :
 - Dates avec [Luxon](https://moment.github.io/luxon/), styles **Tailwind** précompilés (aucune
   configuration Tailwind requise côté application).
 
-> **Statut** : `1.1.0`, dépôt privé. Le package n'est pas publié sur npm (`"private": true`),
+> **Statut** : `1.1.0`, dépôt public. Le package n'est pas publié sur npm (`"private": true`),
 > installez-le depuis Git. La 1.1 est strictement additive : sans les nouvelles props, le
 > comportement et le rendu sont ceux de la 1.0.
 
@@ -50,13 +50,12 @@ applications :
 ## Installation
 
 ```bash
-bun add git+ssh://git@github.com/1bod/react-gantt.git#v1.1.0 luxon
-npm install git+ssh://git@github.com/1bod/react-gantt.git#v1.1.0 luxon
+bun add github:1bod/react-gantt#v1.1.0 luxon
+npm install github:1bod/react-gantt#v1.1.0 luxon
 ```
 
-Le dépôt étant privé, passez par SSH (clé SSH en local, deploy key en CI). Le raccourci
-`github:1bod/react-gantt#v1.1.0` télécharge l'archive via l'API GitHub sans authentification avec
-bun : il ne fonctionne que si le dépôt est public.
+Épinglez toujours un tag de release (`#v1.1.0`), jamais une branche : seuls les tags contiennent
+`dist/`, et `main` peut évoluer.
 
 `react` et `react-dom` (`^19.3.0`) sont des peer dependencies.
 
