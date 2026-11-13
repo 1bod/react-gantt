@@ -266,3 +266,29 @@ describe('computeKeyboardStep', () => {
     expect(r.start - dayBefore).toBe(23 * HOUR);
   });
 });
+
+describe('computeDrag / variable row heights', () => {
+  // Rows of 28, 52 (two lanes), 28 and 28 pixels.
+  const rowTops = [0, 28, 80, 108, 136];
+
+  it('targets the row under the anchor', () => {
+    // Bar on lane 1 of row 1: its centre is at 28 + 24 + 14 = 66.
+    const base = input({ originRowIndex: 1, rowCount: 4, rowTops, anchorY: 66 });
+    expect(computeDrag({ ...base, deltaY: 0 }).rowIndex).toBe(1);
+    expect(computeDrag({ ...base, deltaY: 13 }).rowIndex).toBe(1);
+    expect(computeDrag({ ...base, deltaY: 14 }).rowIndex).toBe(2);
+    expect(computeDrag({ ...base, deltaY: -39 }).rowIndex).toBe(0);
+  });
+
+  it('clamps to the first and last rows', () => {
+    const base = input({ originRowIndex: 1, rowCount: 4, rowTops, anchorY: 40 });
+    expect(computeDrag({ ...base, deltaY: -500 }).rowIndex).toBe(0);
+    expect(computeDrag({ ...base, deltaY: 500 }).rowIndex).toBe(3);
+  });
+
+  it('never changes row while resizing or without allowVertical', () => {
+    const base = input({ originRowIndex: 1, rowCount: 4, rowTops, anchorY: 40, deltaY: 60 });
+    expect(computeDrag({ ...base, kind: 'resize-end' }).rowIndex).toBe(1);
+    expect(computeDrag({ ...base, allowVertical: false }).rowIndex).toBe(1);
+  });
+});

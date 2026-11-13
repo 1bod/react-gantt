@@ -1,5 +1,5 @@
 import { fireEvent, screen } from '@testing-library/react';
-import type { GanttTask } from './types';
+import type { GanttResourceRow, GanttTask } from './types';
 
 export const DAY_START = Date.UTC(2026, 0, 5, 0, 0, 0);
 export const H = 3_600_000;
@@ -46,6 +46,37 @@ export function makeTasks(): GanttTask[] {
       ],
     },
   ];
+}
+
+/** Resource mode props: rows of 28px, lanes of 24px, bars of 20px (4px inset). */
+export const resourceProps = { ...baseProps, rowHeight: 28, laneHeight: 24, barInset: 4 };
+
+export function makeResourceRows(): GanttResourceRow[] {
+  return [
+    { id: 'm1', label: 'Machine 1' },
+    { id: 'm2', label: 'Machine 2' },
+    { id: 'm3', label: 'Machine 3' },
+  ];
+}
+
+/** m1 holds two overlapping bars (two lanes, 52px), m2 and m3 one each (28px). */
+export function makeResourceTasks(): GanttTask[] {
+  return [
+    { id: 'a', label: 'Op A', start: DAY_START + 10 * H, end: DAY_START + 12 * H, rowId: 'm1' },
+    { id: 'b', label: 'Op B', start: DAY_START + 11 * H, end: DAY_START + 13 * H, rowId: 'm1' },
+    { id: 'c', label: 'Op C', start: DAY_START + 14 * H, end: DAY_START + 15 * H, rowId: 'm2' },
+    { id: 'd', label: 'Op D', start: DAY_START + 9 * H, end: DAY_START + 10 * H, rowId: 'm3' },
+  ];
+}
+
+export function getResourceRow(rowId: string): HTMLElement {
+  const row = document.querySelector<HTMLElement>(`[data-gantt="row"][data-row-id="${rowId}"]`);
+  if (!row) throw new Error(`row ${rowId} not found`);
+  return row;
+}
+
+export function getResourceRowIds(): string[] {
+  return getRows().map((row) => row.dataset.rowId!);
 }
 
 export function getBar(taskId: string): HTMLElement {

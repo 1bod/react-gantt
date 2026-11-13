@@ -1,8 +1,9 @@
 import type { DateTime } from 'luxon';
 import type { CSSProperties, ReactNode } from 'react';
-import type { HeaderTick } from './core/header';
+import type { HeaderTick, HeaderTierSpecs } from './core/header';
+import type { ShowLinks } from './core/links';
 import type { GanttRow } from './core/rows';
-import type { DateInput, DragPreview, GanttTask, ParentMode, SnapMode, TaskChange, ZoomLevel } from './types';
+import type { ClosedRange, DateInput, DragPreview, GanttLink, GanttResourceRow, GanttTask, ParentMode, SnapMode, TaskChange, ZoomLevel } from './types';
 
 export type GanttSlot =
   | 'root'
@@ -13,10 +14,12 @@ export type GanttSlot =
   | 'headerTierTop'
   | 'headerTierBottom'
   | 'headerCell'
+  | 'headerTick'
   | 'grid'
   | 'gridLine'
   | 'gridLineMajor'
   | 'nowLine'
+  | 'nowMarker'
   | 'row'
   | 'rowGroup'
   | 'rowChild'
@@ -25,14 +28,20 @@ export type GanttSlot =
   | 'sidebarLabel'
   | 'toggle'
   | 'timelineCell'
+  | 'closedRange'
   | 'bar'
   | 'barGroup'
   | 'barChild'
   | 'barPending'
   | 'barDragging'
+  | 'barSelected'
+  | 'barHighlighted'
+  | 'barInvalid'
+  | 'dropIndicator'
   | 'barLabel'
   | 'handle'
   | 'ghost'
+  | 'link'
   | 'draftToolbar'
   | 'draftButton'
   | 'draftButtonPrimary';
@@ -50,15 +59,22 @@ export interface GanttLabels {
   bar: (task: GanttTask, start: DateTime, end: DateTime) => string;
 }
 
-export interface BarRenderContext<TData = unknown> {
+export interface BarRenderContext<TData = unknown, TRowData = unknown> {
   task: GanttTask<TData>;
   parent: GanttTask<TData> | null;
+  /** Task mode row. In resource mode, a leaf (or child) row describing the task itself. */
   row: GanttRow;
+  /** Resource mode: the row the bar is drawn on. `null` in task mode. */
+  resource: GanttResourceRow<TRowData> | null;
+  /** Resource mode: lane of the bar inside its row (0 in task mode). */
+  lane: number;
   start: DateTime;
   end: DateTime;
   isDragging: boolean;
   isPending: boolean;
   isGroup: boolean;
+  isSelected: boolean;
+  isHighlighted: boolean;
 }
 
 export interface LabelRenderContext<TData = unknown> {
@@ -69,14 +85,38 @@ export interface LabelRenderContext<TData = unknown> {
   toggle: () => void;
 }
 
+export interface RowLabelRenderContext<TData = unknown, TRowData = unknown> {
+  row: GanttResourceRow<TRowData>;
+  index: number;
+  /** Tasks drawn on the row, ordered by start then id. */
+  tasks: GanttTask<TData>[];
+  laneCount: number;
+  /** One of the row's bars is selected. */
+  hasSelection: boolean;
+}
+
 export interface DraftToolbarRenderContext {
   changes: TaskChange[];
   commit: () => void;
   discard: () => void;
 }
 
-export interface GanttProps<TData = unknown> {
+export interface GanttProps<TData = unknown, TRowData = unknown> {
   tasks: GanttTask<TData>[];
+
+  /**
+   * Resource mode: one row per resource, tasks are drawn on the row given by `task.rowId`
+   * (several bars per row, overlapping bars packed into lanes). Without `rows`, the
+   * component is in task mode (one row per task).
+   */
+  rows?: GanttResourceRow<TRowData>[];
+  /** Resource mode: height added to a row by each extra lane. Defaults to `rowHeight`. */
+  laneHeight?: number;
+  /**
+   * Vertical gap in pixels between a bar and the edges of its row (or lane).
+   * Defaults to 15% of `rowHeight` (rounded to whole pixels in resource mode).
+   */
+  barInset?: number;
 
   /** Header granularity. Default `day`. */
   zoom?: ZoomLevel;
@@ -119,7 +159,33 @@ export interface GanttProps<TData = unknown> {
   onTaskChange?: (change: TaskChange) => void | boolean;
   /** Fires continuously during a drag, then once with `null` when the drag ends. */
   onDragPreview?: (preview: DragPreview | null) => void;
+  /**
+   * Rejects a drop target while dragging (and keyboard moves): return `false` and the bar
+   * gets `data-invalid` while over that target, and dropping there cancels the change.
+   */
+  canDrop?: (change: TaskChange) => boolean;
+  /**
+   * The dragged bar follows the pointer 1:1 (no snapping, free vertical move) and a
+   * `[data-gantt="drop-indicator"]` shows the snapped target. Default `false`: the bar
+   * itself jumps to the snapped target (1.0).
+   */
+  dragFollowsPointer?: boolean;
   onTaskClick?: (task: GanttTask<TData>, event: React.PointerEvent<HTMLElement>) => void;
+
+  /**
+   * Selected bars (controlled). A click selects one bar, shift / cmd / ctrl + click toggles
+   * it, Escape or a click on the empty grid clears. Selection is enabled as soon as
+   * `selectedIds` or `onSelectionChange` is given (internal state with the latter only).
+   */
+  selectedIds?: string[];
+  onSelectionChange?: (ids: string[]) => void;
+  /** Bars to emphasise (e.g. the other operations of the selected order): `data-highlighted`. */
+  highlightedIds?: string[];
+
+  /** Dependencies, drawn as orthogonal elbows between the rendered bars (see `showLinks`). */
+  links?: GanttLink[];
+  /** Which links are drawn: those touching a selected bar (default), all of them, or none. */
+  showLinks?: ShowLinks;
 
   /**
    * Draft mode: changes are collected instead of being emitted through `onTaskChange`,
@@ -142,14 +208,35 @@ export interface GanttProps<TData = unknown> {
   overscan?: number;
   /** Height of the component. The body scrolls inside it. Default `500`. */
   height?: number | string;
+  /**
+   * Closed time of a row, drawn as shaded blocks behind the bars. Called with the resource
+   * row in resource mode, with the task row in task mode (`'task' in row`). Results are
+   * cached until the function or the rows change: pass a stable function.
+   */
+  closedRanges?: (row: GanttResourceRow<TRowData> | GanttRow) => ClosedRange[];
+  /** Closed blocks narrower than this (pixels) get `data-narrow` (no hatch by default). Default `30`. */
+  closedNarrowThreshold?: number;
   /** Draw a vertical line at the current time. Default `true`. */
   showNow?: boolean;
   /** Override the current time (testing, "as of" views). */
   now?: DateInput;
+  /** Content drawn in the bottom header tier, centred on the now line (e.g. a time chip). */
+  renderNow?: (now: DateTime) => ReactNode;
 
-  renderBar?: (ctx: BarRenderContext<TData>) => ReactNode;
+  renderBar?: (ctx: BarRenderContext<TData, TRowData>) => ReactNode;
   renderLabel?: (ctx: LabelRenderContext<TData>) => ReactNode;
+  /** Resource mode: content of a row's sidebar cell. Defaults to `row.label`. */
+  renderRowLabel?: (ctx: RowLabelRenderContext<TData, TRowData>) => ReactNode;
   renderHeaderCell?: (tick: HeaderTick, tier: 'top' | 'bottom') => ReactNode;
+  /** Content of the top-left header cell, above the sidebar. */
+  renderSidebarHeader?: () => ReactNode;
+  /**
+   * Header tiers per zoom level: unit, step and label format of the top and bottom tiers
+   * (e.g. days over 6-hour steps). Missing levels use `DEFAULT_HEADER_TIERS`.
+   */
+  headerTiers?: Partial<Record<ZoomLevel, HeaderTierSpecs>>;
+  /** Tick marks on the bottom tier; its labels are then left-aligned at their tick. Default `false`. */
+  showTicks?: boolean;
   barClassName?: (task: GanttTask<TData>) => string | undefined;
   barStyle?: (task: GanttTask<TData>) => CSSProperties | undefined;
 
@@ -163,6 +250,7 @@ export interface GanttHandle {
   commitDraft: () => void;
   discardDraft: () => void;
   getPendingChanges: () => TaskChange[];
+  /** Scrolls to the row of the task (its resource row in resource mode) and to the start of its bar. */
   scrollToTask: (id: string) => void;
   scrollToTime: (date: DateInput) => void;
   /** The scrollable element, for advanced integrations. */

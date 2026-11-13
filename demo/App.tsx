@@ -5,13 +5,37 @@ import {
   applyTaskChanges,
   type DragPreview,
   type GanttHandle,
+  type GanttProps,
+  type GanttResourceRow,
+  type GanttRow,
   type GanttTask,
   type ParentMode,
   type SnapMode,
   type TaskChange,
   type ZoomLevel,
 } from '@1bod/react-gantt';
-import { BASE, fixedTasks, generateTasks, type DemoData } from './data';
+import { BASE, fixedTasks, generateTasks, RESOURCE_LINKS, RESOURCE_ROWS, resourceClosedRanges, resourceTasks, type DemoData } from './data';
+
+type Dataset = 'fixed' | 'big' | 'resources';
+type RowData = { code: string };
+
+function initialTasks(dataset: Dataset): GanttTask<DemoData>[] {
+  return dataset === 'big' ? generateTasks(3000) : dataset === 'resources' ? resourceTasks() : fixedTasks();
+}
+
+// Stable references: the gantt caches the closed ranges per function and rows.
+const closedRanges = (row: GanttResourceRow<RowData> | GanttRow) => ('task' in row ? [] : resourceClosedRanges(row));
+const canDrop = (change: TaskChange) => change.rowId !== 'maint';
+const HEADER_TIERS: GanttProps['headerTiers'] = {
+  hour: [
+    { unit: 'day', format: 'ccc d LLL' },
+    { unit: 'hour', format: 'HH:mm' },
+  ],
+  day: [
+    { unit: 'day', format: 'ccc d LLL' },
+    { unit: 'hour', step: 6, format: 'HH:mm' },
+  ],
+};
 
 interface LogEntry {
   at: number;
@@ -37,13 +61,19 @@ function serialize(change: TaskChange) {
     previousEnd: change.previousEnd.toISO(),
     position: change.position ?? null,
     previousPosition: change.previousPosition,
+    rowId: change.rowId ?? null,
+    previousRowId: change.previousRowId ?? null,
   };
 }
 
 export function App() {
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
-  const [dataset, setDataset] = useState<'fixed' | 'big'>(params.get('dataset') === 'big' ? 'big' : 'fixed');
-  const [tasks, setTasks] = useState<GanttTask<DemoData>[]>(() => (dataset === 'big' ? generateTasks(3000) : fixedTasks()));
+  const [dataset, setDataset] = useState<Dataset>(() => {
+    const value = params.get('dataset');
+    return value === 'big' || value === 'resources' ? value : 'fixed';
+  });
+  const [tasks, setTasks] = useState<GanttTask<DemoData>[]>(() => initialTasks(dataset));
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [zoom, setZoom] = useState<ZoomLevel>((params.get('zoom') as ZoomLevel) || 'hour');
   const [snap, setSnap] = useState<SnapMode>((params.get('snap') as SnapMode) || 'hour');
   const [snapToTasks, setSnapToTasks] = useState(params.get('snapToTasks') !== 'false');
@@ -60,11 +90,51 @@ export function App() {
     (window as Window & { gantt?: GanttHandle | null }).gantt = ref.current;
   });
 
-  const switchDataset = (next: 'fixed' | 'big') => {
+  const switchDataset = (next: Dataset) => {
     setDataset(next);
-    setTasks(next === 'big' ? generateTasks(3000) : fixedTasks());
+    setTasks(initialTasks(next));
+    setSelectedIds([]);
     setLog([]);
   };
+
+  // Resources dataset: the other operations of the selected orders are highlighted.
+  const highlightedIds = useMemo(() => {
+    const orders = new Set(tasks.filter((t) => selectedIds.includes(t.id)).map((t) => t.data?.order));
+    return tasks.filter((t) => t.data?.order && orders.has(t.data.order) && !selectedIds.includes(t.id)).map((t) => t.id);
+  }, [tasks, selectedIds]);
+
+  const resourceProps: Partial<GanttProps<DemoData, RowData>> =
+    dataset === 'resources'
+      ? {
+          rows: RESOURCE_ROWS,
+          rowHeight: 28,
+          laneHeight: 24,
+          barInset: 4,
+          columnWidth: zoom === 'day' ? 480 : undefined,
+          closedRanges,
+          links: RESOURCE_LINKS,
+          selectedIds,
+          onSelectionChange: setSelectedIds,
+          highlightedIds,
+          canDrop,
+          dragFollowsPointer: true,
+          showTicks: true,
+          headerTiers: HEADER_TIERS,
+          renderSidebarHeader: () => <span className="px-3 text-xs font-semibold tracking-wide text-slate-500 uppercase">Machines</span>,
+          renderNow: (now) => (
+            <span data-testid="now-chip" className="rounded bg-red-500 px-1.5 py-0.5 text-[11px] leading-none font-medium text-white tabular-nums">
+              {now.toFormat('HH:mm')}
+            </span>
+          ),
+          renderRowLabel: ({ row, tasks: rowTasks }) => (
+            <span className="flex items-center gap-2">
+              <span className="truncate font-medium">{row.label}</span>
+              <span className="text-[10px] text-slate-400">{row.data?.code}</span>
+              <span className="ml-auto text-[10px] text-slate-400">{rowTasks.length}</span>
+            </span>
+          ),
+        }
+      : {};
 
   const handleChange = (change: TaskChange) => {
     if (rejectMoves && change.reason === 'move') {
@@ -87,9 +157,10 @@ export function App() {
         <h1 className="mr-4 text-lg font-semibold">@1bod/react-gantt</h1>
         <label className="flex items-center gap-1 text-sm">
           Données
-          <select data-testid="dataset" className="rounded border px-1 py-0.5" value={dataset} onChange={(e) => switchDataset(e.target.value as 'fixed' | 'big')}>
+          <select data-testid="dataset" className="rounded border px-1 py-0.5" value={dataset} onChange={(e) => switchDataset(e.target.value as Dataset)}>
             <option value="fixed">Projet (9 tâches)</option>
             <option value="big">3000 lignes</option>
+            <option value="resources">Atelier (machines)</option>
           </select>
         </label>
         <label className="flex items-center gap-1 text-sm">
@@ -146,7 +217,7 @@ export function App() {
 
       <div className="flex min-h-0 flex-1 gap-3">
         <div className="min-w-0 flex-1 overflow-hidden rounded-lg bg-white shadow-sm">
-          <Gantt<DemoData>
+          <Gantt<DemoData, RowData>
             ref={ref}
             tasks={tasks}
             zoom={zoom}
@@ -181,6 +252,7 @@ export function App() {
                 {task.data?.kind && <span className="rounded bg-slate-100 px-1 text-[10px] uppercase text-slate-500">{task.data.kind}</span>}
               </span>
             )}
+            {...resourceProps}
           />
         </div>
 
@@ -189,7 +261,16 @@ export function App() {
           <pre data-testid="preview" className="min-h-[4rem] overflow-auto rounded bg-slate-50 p-2">
             {preview
               ? JSON.stringify(
-                  { id: preview.id, reason: preview.reason, start: preview.start.toFormat('dd/MM HH:mm'), end: preview.end.toFormat('dd/MM HH:mm'), snappedTo: preview.snappedTo, position: preview.position },
+                  {
+                    id: preview.id,
+                    reason: preview.reason,
+                    start: preview.start.toFormat('dd/MM HH:mm'),
+                    end: preview.end.toFormat('dd/MM HH:mm'),
+                    snappedTo: preview.snappedTo,
+                    position: preview.position,
+                    ...(preview.rowId !== undefined ? { rowId: preview.rowId } : {}),
+                    ...(preview.valid !== undefined ? { valid: preview.valid } : {}),
+                  },
                   null,
                   1,
                 )

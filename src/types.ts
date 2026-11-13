@@ -32,6 +32,37 @@ export interface GanttTask<TData = unknown> {
   parentMode?: ParentMode;
   /** Free slot for consumer data, passed back untouched in render props and events. */
   data?: TData;
+  /** Resource mode (`rows` prop): id of the row the task is drawn on. */
+  rowId?: string;
+}
+
+/** A row of the resource mode (a machine, an operator…). Tasks are drawn on it through `task.rowId`. */
+export interface GanttResourceRow<TRowData = unknown> {
+  id: string;
+  /** Content displayed in the sidebar. */
+  label: ReactNode;
+  /** Free slot for consumer data, passed back untouched in render props. */
+  data?: TRowData;
+}
+
+/** A period during which a row is not available (night, weekend, maintenance…). */
+export interface ClosedRange {
+  start: DateInput;
+  end: DateInput;
+}
+
+/** Dependency type: which end of `from` constrains which end of `to`. */
+export type LinkType = 'finish_start' | 'start_start' | 'finish_finish';
+
+/** A dependency between two tasks, drawn as an elbow between their bars. */
+export interface GanttLink {
+  id: string;
+  /** Predecessor task id. */
+  from: string;
+  /** Successor task id. */
+  to: string;
+  /** Default `finish_start`. */
+  type?: LinkType;
 }
 
 /** Where a task lives in the tree: `parentId` is `null` at the root level. */
@@ -51,6 +82,10 @@ export interface TaskChange {
   /** Present only when the task was moved to another row. */
   position?: TaskPosition;
   previousPosition: TaskPosition;
+  /** Resource mode: present only when the task was moved to another resource row. */
+  rowId?: string;
+  /** Resource mode: the row the task was on before the change. */
+  previousRowId?: string;
 }
 
 export interface DragPreview {
@@ -61,4 +96,8 @@ export interface DragPreview {
   position: TaskPosition;
   /** What the current position snapped to. */
   snappedTo: 'edge' | 'grid' | 'none';
+  /** Resource mode: the row under the pointer. */
+  rowId?: string;
+  /** Only with `canDrop`: whether dropping here is allowed. */
+  valid?: boolean;
 }

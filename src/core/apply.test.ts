@@ -101,3 +101,21 @@ describe('applyTaskChange', () => {
     expect(next[1]).toMatchObject({ start: 5, end: 6 });
   });
 });
+
+describe('applyTaskChange / resource mode', () => {
+  it('moves a root task to another resource row', () => {
+    const next = applyTaskChange(tasks, change('a', { rowId: 'm2', previousRowId: 'm1' }));
+    expect(ids(next)).toEqual(['a', 'g', 'b']);
+    expect(next[0]).toMatchObject({ rowId: 'm2', start: 1000, end: 2000 });
+  });
+
+  it('moves a child to another resource row', () => {
+    const next = applyTaskChange(tasks, change('g2', { rowId: 'm3' }));
+    expect(next[1]!.children![1]).toMatchObject({ id: 'g2', rowId: 'm3', start: 1000 });
+  });
+
+  it('keeps the row when the change has no rowId', () => {
+    const withRow = [{ ...tasks[0]!, rowId: 'm1' }];
+    expect(applyTaskChange(withRow, change('a'))[0]!.rowId).toBe('m1');
+  });
+});

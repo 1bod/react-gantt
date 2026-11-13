@@ -1,6 +1,6 @@
 {
   "name": "@1bod/react-gantt",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Highly customizable, virtualized React Gantt component with subtasks, snapping drag & drop and draft mode.",
   "private": true,
   "type": "module",

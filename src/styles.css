@@ -3,7 +3,7 @@
  * this file never resets the host application's styles.
  * Consumers: import '@1bod/react-gantt/styles.css'
  */
-@layer theme, utilities;
+@layer theme, base, components, utilities;
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css' layer(utilities);
 
@@ -24,6 +24,22 @@
   --gantt-muted: #6b7280;
   --gantt-pending-color: #f59e0b;
   --gantt-drop-color: #2563eb;
+  --gantt-drop-text: #ffffff;
+  --gantt-now-color: oklch(63.7% 0.237 25.331); /* Tailwind red-500, the 1.0 now line */
+  --gantt-focus-color: oklch(62.3% 0.214 259.815); /* Tailwind blue-500 */
+  --gantt-handle-hover-bg: rgb(0 0 0 / 0.2);
+  --gantt-toggle-hover-bg: rgb(0 0 0 / 0.1);
+  --gantt-button-hover-bg: rgb(0 0 0 / 0.05);
+  --gantt-ghost-hatch: rgb(0 0 0 / 0.08);
+  --gantt-drag-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+  --gantt-toolbar-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --gantt-closed-bg: #f3f4f6;
+  --gantt-closed-hatch: #e5e7eb;
+  --gantt-tick-height: 6px;
+  --gantt-selected-color: #2563eb;
+  --gantt-highlight-color: #93c5fd;
+  --gantt-link-color: var(--gantt-muted);
+  --gantt-invalid-color: #dc2626;
   --gantt-font: ui-sans-serif, system-ui, sans-serif;
   font-family: var(--gantt-font);
   color: var(--gantt-text);
@@ -42,7 +58,13 @@
 
 .gantt-bar[data-dragging='true'] {
   opacity: 0.85;
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.25);
+  box-shadow: var(--gantt-drag-shadow);
+  /* The dragged bar follows the pointer 1:1, even if the host adds transitions to bars. */
+  transition: none;
+}
+
+.gantt-bar[data-invalid='true'] {
+  cursor: not-allowed;
 }
 
 .gantt-ghost {
@@ -50,12 +72,62 @@
     45deg,
     transparent,
     transparent 4px,
-    rgb(0 0 0 / 0.08) 4px,
-    rgb(0 0 0 / 0.08) 8px
+    var(--gantt-ghost-hatch) 4px,
+    var(--gantt-ghost-hatch) 8px
   );
   border: 1px dashed var(--gantt-muted);
 }
 
 .gantt-row[data-drop-target='true'] {
   box-shadow: inset 0 0 0 2px var(--gantt-drop-color);
+}
+
+/*
+ * 1.1 defaults live in the `components` layer: utilities passed through `classNames`
+ * (and any unlayered rule of the host application) win over them.
+ */
+@layer components {
+  /* Closed time: plain fill plus a 45° hatch. A transparent hatch gives a plain fill. */
+  .gantt-closed {
+    background-color: var(--gantt-closed-bg);
+    background-image: repeating-linear-gradient(45deg, var(--gantt-closed-hatch) 0 1px, transparent 1px 6px);
+  }
+
+  .gantt-closed[data-narrow='true'] {
+    background-image: none;
+  }
+
+  .gantt-draft-toolbar {
+    box-shadow: var(--gantt-toolbar-shadow);
+  }
+
+  .gantt-link {
+    color: var(--gantt-link-color);
+  }
+
+  /* Selection is instant: no transition. */
+  .gantt-bar[data-highlighted='true'] {
+    outline: 2px solid var(--gantt-highlight-color);
+    outline-offset: 1px;
+  }
+
+  .gantt-bar[data-selected='true'] {
+    outline: 2px solid var(--gantt-selected-color);
+    outline-offset: 1px;
+  }
+
+  .gantt-bar[data-invalid='true'] {
+    outline: 2px solid var(--gantt-invalid-color);
+    outline-offset: 1px;
+  }
+
+  /* Snapped target of a pointer-following drag. */
+  .gantt-drop-indicator {
+    outline: 2px dashed var(--gantt-drop-color);
+    outline-offset: -1px;
+  }
+
+  .gantt-drop-indicator[data-invalid='true'] {
+    outline-color: var(--gantt-invalid-color);
+  }
 }

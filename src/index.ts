@@ -8,10 +8,15 @@ export type {
   GanttSlot,
   BarRenderContext,
   LabelRenderContext,
+  RowLabelRenderContext,
   DraftToolbarRenderContext,
 } from './props';
 export type {
   GanttTask,
+  GanttResourceRow,
+  ClosedRange,
+  GanttLink,
+  LinkType,
   TaskChange,
   TaskPosition,
   DragPreview,
@@ -27,8 +32,18 @@ export type { DragInput, DragResult, DragKind } from './core/drag';
 export { snapToGrid, snapTime, nearestEdge, snapUnitMs } from './core/snap';
 export type { SnapContext, SnapResult } from './core/snap';
 export { flattenRows, getDropPosition, findTask } from './core/rows';
+export { packLanes } from './core/lanes';
+export type { LaneItem, LaneLayout } from './core/lanes';
+export { buildResourceLayout } from './core/resources';
+export { clipRanges, toIntervals } from './core/closed';
+export { linkPath, selectLinks } from './core/links';
+export type { BarRect, LinkGeometry, ShowLinks } from './core/links';
+export { nextSelection } from './core/selection';
+export type { SelectionAction } from './core/selection';
+export type { Interval } from './core/closed';
+export type { ResourceLayout, ResourceRowLayout, ResourceBar } from './core/resources';
 export type { GanttRow, BarItem } from './core/rows';
 export { toMs, toDateTime, computeRange, createTimeScale, msToPx, pxToMs, MINUTE, HOUR, DAY, WEEK } from './core/time';
 export type { TimeScale, TimeRange } from './core/time';
-export { buildHeaderTicks } from './core/header';
-export type { HeaderTick, HeaderTiers } from './core/header';
+export { buildHeaderTicks, DEFAULT_HEADER_TIERS } from './core/header';
+export type { HeaderTick, HeaderTiers, HeaderTierSpec, HeaderTierSpecs, HeaderTierUnit } from './core/header';
